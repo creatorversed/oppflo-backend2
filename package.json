@@ -1,0 +1,21 @@
+{
+  "name": "oppflo-backend",
+  "version": "1.0.0",
+  "description": "Backend API for OppFlo - creator economy job tracking platform",
+  "main": "api/health.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@supabase/supabase-js": "^2.45.0",
+    "cors": "^2.8.5",
+    "google-search-results-nodejs": "^2.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "rss-parser": "^3.13.0"
+  }
+}
