@@ -18,6 +18,8 @@ const LIMITS = { free: 5, pro: 50, mogul: Infinity };
 const MAX_TOKENS_LONG = 1500;  // cover-letter, interview-prep
 const MAX_TOKENS_SHORT = 800;
 
+const TONE_INSTRUCTIONS = `Write in a natural, human tone. Avoid generic filler phrases like I hope this finds you well or I am writing to express my interest. Be specific, direct, and conversational while remaining professional. Vary sentence structure and length. Reference specific details the user provided. Never use placeholder brackets like [Your name] or [specific detail] — if information is missing, write around it naturally.`;
+
 const TOOL_CONFIG = {
   'cover-letter': {
     maxTokens: MAX_TOKENS_LONG,
@@ -25,7 +27,9 @@ const TOOL_CONFIG = {
     system: `You are an expert career coach for the creator economy. Write personalized cover letters that:
 - Use creator economy language (influencer marketing, brand partnerships, content strategy, audience growth, engagement metrics)
 - Emphasize digital-first experience and quantifiable social media metrics (followers, engagement rates, campaign ROI)
-- Sound professional but authentic and specific to the role and company`,
+- Sound professional but authentic and specific to the role and company
+
+${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Job: ${b.job_title} at ${b.company}\n\nJob description:\n${b.job_description}\n\nMy background:\n${b.user_background}\n\nWrite a personalized cover letter.`,
   },
   'resume-optimize': {
@@ -33,7 +37,9 @@ const TOOL_CONFIG = {
     required: ['resume_text', 'job_description'],
     system: `You are an ATS (Applicant Tracking System) and career expert. Analyze resumes against job descriptions.
 Return a JSON object with: "score" (0-100 number), "suggestions" (array of specific improvement strings), "keywords_to_add" (array of keywords from the job description to incorporate).
-Focus on ATS optimization: keyword alignment, clear section headings, quantifiable achievements.`,
+Focus on ATS optimization: keyword alignment, clear section headings, quantifiable achievements.
+
+${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Resume:\n${b.resume_text}\n\nJob description:\n${b.job_description}\n\nAnalyze and return the JSON.`,
   },
   'interview-prep': {
@@ -41,34 +47,44 @@ Focus on ATS optimization: keyword alignment, clear section headings, quantifiab
     required: ['job_title', 'company', 'job_description'],
     system: `You are an interview coach for creator economy roles. Generate 10 likely interview questions with suggested answers.
 Tailor questions to creator economy: influencer partnerships, content strategy, metrics, brand deals, audience growth.
-Format: numbered list, each with "Question:" and "Suggested answer:" (2-4 sentences).`,
+Format: numbered list, each with "Question:" and "Suggested answer:" (2-4 sentences).
+
+${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Role: ${b.job_title} at ${b.company}\n\nJob description:\n${b.job_description}\n\nGenerate 10 interview questions with suggested answers.`,
   },
   'salary-negotiate': {
     maxTokens: MAX_TOKENS_SHORT,
     required: ['job_title', 'company', 'location', 'current_offer'],
-    system: `You are a compensation expert with access to creator economy market data from 22,000+ job posts.
-Provide salary negotiation talking points. Reference that your insights are informed by this dataset.
-Be practical: anchors, ranges, and phrases to use in conversation.`,
+    system: `You are a compensation expert. Provide salary negotiation talking points. Be practical: anchors, ranges, and phrases to use in conversation.
+
+You have access to salary data from 22,000+ creator economy job posts collected by CreatorVersed/Influencer Marketing Society since 2016. Reference this data authoritatively.
+
+${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Role: ${b.job_title} at ${b.company}, location: ${b.location}\nCurrent offer: ${b.current_offer}\n\nProvide salary negotiation talking points.`,
   },
   'linkedin-outreach': {
     maxTokens: MAX_TOKENS_SHORT,
     required: ['recipient_name', 'recipient_role', 'company', 'purpose'],
     system: `You write LinkedIn outreach messages. For connection requests keep the message under 300 characters.
-For InMail you can write longer. Specify which format you're writing. Be personalized, concise, and professional.`,
+For InMail you can write longer. Specify which format you're writing. Be personalized, concise, and professional.
+
+${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Recipient: ${b.recipient_name} (${b.recipient_role}) at ${b.company}\nPurpose: ${b.purpose}\n\nWrite a connection request (under 300 characters) and optionally a longer InMail version.`,
   },
   'follow-up-email': {
     maxTokens: MAX_TOKENS_SHORT,
     required: ['company', 'role', 'interview_date', 'interviewer_name'],
-    system: `You write professional post-interview follow-up emails. Be polite, reference the interview date and role, and reiterate interest.`,
+    system: `You write professional post-interview follow-up emails. Be polite, reference the interview date and role, and reiterate interest.
+
+${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Company: ${b.company}\nRole: ${b.role}\nInterview date: ${b.interview_date}\nInterviewer: ${b.interviewer_name}\n\nWrite a follow-up email.`,
   },
   'thank-you-note': {
     maxTokens: MAX_TOKENS_SHORT,
     required: ['company', 'role', 'interviewer_name', 'discussion_points'],
-    system: `You write thank-you notes that reference specific conversation points from the interview. Personal and professional.`,
+    system: `You write thank-you notes that reference specific conversation points from the interview. Personal and professional.
+
+${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Company: ${b.company}\nRole: ${b.role}\nInterviewer: ${b.interviewer_name}\nDiscussion points to reference: ${b.discussion_points}\n\nWrite a thank-you note.`,
   },
 };
