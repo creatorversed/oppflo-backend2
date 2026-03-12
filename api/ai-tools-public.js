@@ -9,12 +9,11 @@
  */
 
 const Anthropic = require('@anthropic-ai/sdk');
+const { TONE_INSTRUCTIONS } = require('../lib/ai-tools-prompts');
 
 const MODEL = 'claude-sonnet-4-20250514';
 const PUBLIC_RATE_LIMIT_PER_DAY = 3;
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-const TONE_INSTRUCTIONS = `Write in a natural, human tone. Avoid generic filler phrases like I hope this finds you well or I am writing to express my interest. Be specific, direct, and conversational while remaining professional. Vary sentence structure and length. Reference specific details the user provided. Never use placeholder brackets like [Your name] or [specific detail] — if information is missing, write around it naturally.`;
 
 const TOOL_CONFIG = {
   'cover-letter': {
@@ -24,6 +23,8 @@ const TOOL_CONFIG = {
 - Use creator economy language (influencer marketing, brand partnerships, content strategy, audience growth, engagement metrics)
 - Emphasize digital-first experience and quantifiable social media metrics (followers, engagement rates, campaign ROI)
 - Sound professional but authentic and specific to the role and company
+
+Address the cover letter to the company name provided in the company field, NOT the company mentioned in the job description. The user provides: job_title, company (use this for the greeting), job_description, and user_background. Never end with [Your name] — end with a warm closing like Best regards followed by a line break, then leave it unsigned.
 
 ${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Job: ${b.job_title} at ${b.company}\n\nJob description:\n${b.job_description}\n\nMy background:\n${b.user_background}\n\nWrite a personalized cover letter.`,
@@ -61,11 +62,19 @@ ${TONE_INSTRUCTIONS}`,
   'linkedin-outreach': {
     maxTokens: 800,
     required: ['recipient_name', 'recipient_role', 'company', 'purpose'],
-    system: `You write LinkedIn outreach messages. For connection requests keep the message under 300 characters.
-For InMail you can write longer. Specify which format you're writing. Be personalized, concise, and professional.
+    system: `Generate outreach messages tailored to the specific platform the user selected. Apply 2026 best practices for each platform:
+
+LinkedIn — connection requests must be under 300 characters, InMail can be longer but still concise, professional tone, reference mutual connections or shared interests.
+Instagram — DMs should be casual, authentic, 2-3 sentences max, reference their content specifically, avoid sounding like a bot.
+Email — include a compelling subject line, keep body under 150 words, lead with value not ask, personalize the opening line.
+Twitter/X — keep DMs brief and direct, 1-2 sentences, reference a specific tweet or topic.
+Threads — conversational and community-oriented tone, reference their Threads posts or takes.
+TikTok — ultra casual, reference their videos specifically, keep it short and genuine, use language natural to the platform.
+
+Always adapt formality, length, and style to match platform norms. If the user provides a platform field, use it. If not, default to LinkedIn format.
 
 ${TONE_INSTRUCTIONS}`,
-    buildUser: (b) => `Recipient: ${b.recipient_name} (${b.recipient_role}) at ${b.company}\nPurpose: ${b.purpose}\n\nWrite a connection request (under 300 characters) and optionally a longer InMail version.`,
+    buildUser: (b) => `Recipient: ${b.recipient_name} (${b.recipient_role}) at ${b.company}\nPurpose: ${b.purpose}\nPlatform: ${(b.platform || 'LinkedIn').trim()}\n\nGenerate an outreach message for this platform.`,
   },
   'follow-up-email': {
     maxTokens: 800,
