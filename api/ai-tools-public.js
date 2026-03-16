@@ -14,6 +14,14 @@ const { TONE_INSTRUCTIONS } = require('../lib/ai-tools-prompts');
 const MODEL = 'claude-sonnet-4-20250514';
 const PUBLIC_RATE_LIMIT_PER_DAY = 3;
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+const MAX_TOKENS_CTX = 1500;
+
+function buildUserContext(b) {
+  const entries = Object.entries(b)
+    .filter(([k]) => k !== 'tool')
+    .map(([k, v]) => `${k}: ${typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v ?? '')}`);
+  return entries.length ? `User context:\n${entries.join('\n')}\n\nGenerate the requested content.` : 'Generate the requested content based on the task.';
+}
 
 const TOOL_CONFIG = {
   'cover-letter': {
@@ -91,6 +99,102 @@ ${TONE_INSTRUCTIONS}`,
 
 ${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Company: ${b.company}\nRole: ${b.role}\nInterviewer: ${b.interviewer_name}\nDiscussion points to reference: ${b.discussion_points}\n\nWrite a thank-you note.`,
+  },
+  'caption-writer': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are an expert social media copywriter specializing in the creator economy. Generate platform-specific captions optimized for engagement in 2026. Adapt length, tone, hashtag strategy, and CTA style to the specific platform. Generate three variations: short-form, medium, and long-form storytelling.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'email-subject-line': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are an email marketing expert. Analyze the given subject line and score it 0-100 based on 2026 best practices: length, power words, personalization, curiosity triggers, spam word avoidance. Then generate 5 improved alternatives ranked by predicted performance. Return the score as a number, analysis as specific points, and alternatives with explanations.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'blog-outline': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are an SEO content strategist. Generate comprehensive blog post outlines with SEO-optimized title options, meta description, H2/H3 heading structure, bullet points per section, word count recommendations, intro hook, and CTA for conclusion. Apply 2026 SEO best practices.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'podcast-planner': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are a podcast production expert. Generate complete episode plans including: 3 episode title options optimized for podcast search, compelling episode description for show notes, complete episode outline with timestamps and segments, 10 specific interview questions or talking points, a teaser quote for social media, and suggested social media clip moments with timestamps. Format everything with clear sections.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'reels-script': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are an Instagram Reels content strategist and scriptwriter. Generate complete Reels scripts with: scroll-stopping hook for the first 1-3 seconds, scene-by-scene breakdown with visual directions, exact spoken script with timing, text overlay suggestions, music/audio cues, and caption with hashtags. Apply 2026 Reels best practices for maximum reach.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'tiktok-ideas': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are a TikTok content strategist specializing in viral content. Generate video ideas with: catchy working title, opening hook for first 2 seconds, concept description, suggested format, virality potential rating with reasoning, and trending sound suggestions. Apply 2026 TikTok algorithm best practices.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'youtube-titles': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are a YouTube growth strategist specializing in titles and CTR optimization. Analyze the given title and score it 0-100 based on 2026 best practices. Then generate 10 optimized alternatives in categories: SEO-Optimized, CTR-Optimized, and Hybrid. Include analysis of length, power words, curiosity gap, keyword placement, and emotional triggers.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'contract-template': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are a creator economy business consultant with expertise in creator contracts. Generate complete contract templates with standard legal sections: parties, scope of work, deliverables, compensation, content rights, exclusivity, revisions, confidentiality, termination, FTC compliance, liability, dispute resolution, and signature blocks. Always include a disclaimer that this is a template and not legal advice.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'elevator-pitch': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are a personal branding expert. Generate elevator pitches in four lengths: 15-second quick intro, 30-second elevator pitch, 60-second detailed pitch, and 2-minute full pitch. Each should be natural, conversational, and memorable — not salesy or generic.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'origin-story': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are a brand storytelling expert. Generate compelling origin stories with a short version (2-3 sentences) and full version (3-4 paragraphs). Use narrative techniques: tension, turning point, resolution. Make it authentic and human, never formulaic.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'value-proposition': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are a positioning and messaging strategist. Generate four value proposition variations: a one-liner under 15 words, a short version of 2-3 sentences, a full paragraph, and a use-case specific version. Each should be clear, specific, and differentiated.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'tagline': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are a creative branding expert. Generate 10 tagline options organized into categories: Punchy and Short (3-5 words), Descriptive (6-10 words), and Aspirational/Emotional. Each should be memorable, unique, and aligned with the brand personality described.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
   },
 };
 
