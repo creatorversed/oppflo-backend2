@@ -202,6 +202,38 @@ ${TONE_INSTRUCTIONS}`,
 ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
+  'sponsorship-proposal': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are a creator economy monetization expert specializing in brand partnerships. Generate complete, professional sponsorship proposals with executive summary, audience insights, partnership structure, pricing, ROI projections, and next steps. Make proposals specific and data-informed, never generic. Apply 2026 influencer marketing best practices.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'brand-pitch': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are an expert at cold outreach for creator-brand partnerships. Generate pitch emails that are personalized, concise, and compelling. Create three variations: a short cold email under 150 words, a detailed pitch, and a DM version. Each should feel authentic and not salesy. Include subject lines that get opened. Apply 2026 best practices for creator outreach.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'meeting-notes': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are a professional executive assistant expert at organizing chaotic meeting notes into clear, actionable documents. Transform raw brain dumps into organized summaries with key discussion points, decisions, action items with owners and deadlines, and follow-up email drafts. Be thorough but concise.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'scope-of-work': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are a creator economy business consultant specializing in professional service agreements. Generate complete scope of work documents with project overview, deliverables, timeline, compensation, payment terms, revision policy, communication plan, exclusions, and termination clause. Always include a disclaimer that this is a template and not legal advice. Make it specific to the creator/content industry.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
 };
 
 // In-memory IP rate limit: { ip: [timestamp, ...] }. Pruned when checked.
