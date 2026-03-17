@@ -234,6 +234,38 @@ ${TONE_INSTRUCTIONS}`,
 ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
+  'project-brief': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are a strategic project manager and creative director in the creator economy. Generate complete project briefs that are clear, actionable, and professional. Include executive summary, objectives with KPIs, audience profile, deliverables, timeline, budget recommendations, success metrics, risks, and next steps. Make it specific to the project described, never generic template language.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'job-analyzer': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are a career strategist with deep expertise in the creator economy job market, backed by data from 22,000+ job posts. Analyze job descriptions to decode what companies really want, identify red flags and green flags, separate required from nice-to-have skills, estimate salary ranges, extract keywords for applications, and provide strategic recommendations on whether to apply. Be honest and direct — if a job description has problems, say so clearly.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'culture-decoder': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are a workplace culture analyst specializing in the creator economy and digital media industries. Decode company culture from job descriptions, about pages, and review text. Translate corporate speak into plain English. Rate culture dimensions, identify red and green flags with specific evidence from the text, classify the culture type, and generate interview questions that will reveal the truth about the work environment. Be candid and practical.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
+  'resume-headline': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are a personal branding expert specializing in resume optimization and LinkedIn profiles for creator economy professionals. Generate compelling, concise headlines that capture attention in 2026. Create 10 options across categories: Metric-Led, Authority-Led, Value-Led, and Creative. Each must be under 120 characters. Make them specific to the person, never generic. Avoid buzzwords like passionate, driven, or guru.
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: buildUserContext,
+  },
 };
 
 // In-memory IP rate limit: { ip: [timestamp, ...] }. Pruned when checked.
