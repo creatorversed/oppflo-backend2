@@ -10,7 +10,7 @@
 
 const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
-const { TONE_INSTRUCTIONS } = require('../lib/ai-tools-prompts');
+const { TONE_INSTRUCTIONS, DB_DATA_CONTEXT_PREFIX } = require('../lib/ai-tools-prompts');
 
 const MODEL = 'claude-sonnet-4-20250514';
 const PUBLIC_RATE_LIMIT_PER_DAY = 3;
@@ -401,7 +401,7 @@ async function fetchToolDataContext(toolName, body, supabase) {
         .ilike('title', `%${keyword}%`)
         .limit(50);
       if (error || !data?.length) return '';
-      return `REAL SALARY DATA FROM 17,769 CREATOR ECONOMY JOB POSTS:\n${stringifyRows(data)}\nUse this actual data to inform your salary ranges and negotiation advice. Cite specific numbers from this data.\n\n`;
+      return `${DB_DATA_CONTEXT_PREFIX.salaryNegotiate}${stringifyRows(data)}\n\n`;
     }
 
     if (toolName === 'career-quiz') {
@@ -437,7 +437,7 @@ async function fetchToolDataContext(toolName, body, supabase) {
         .sort((a, b) => b.frequency - a.frequency)
         .slice(0, 100);
       if (!ranked.length) return '';
-      return `REAL JOB MARKET DATA FROM 17,769 CREATOR ECONOMY POSTS: Here are the most common roles and their salary ranges:\n${stringifyRows(ranked)}\nUse these actual role titles and salary data in your career path recommendations.\n\n`;
+      return `${DB_DATA_CONTEXT_PREFIX.careerQuiz}${stringifyRows(ranked)}\n\n`;
     }
 
     if (toolName === 'job-analyzer') {
@@ -449,7 +449,7 @@ async function fetchToolDataContext(toolName, body, supabase) {
         .ilike('title', `%${keyword}%`)
         .limit(30);
       if (error || !data?.length) return '';
-      return `REAL COMPARABLE SALARY DATA:\n${stringifyRows(data)}\nUse this to estimate the salary range for the role being analyzed.\n\n`;
+      return `${DB_DATA_CONTEXT_PREFIX.jobAnalyzer}${stringifyRows(data)}\n\n`;
     }
 
     if (toolName === 'culture-decoder') {
@@ -473,7 +473,7 @@ async function fetchToolDataContext(toolName, body, supabase) {
         .sort((a, b) => b.postings - a.postings)
         .slice(0, 20);
       if (!result.length) return '';
-      return `HIRING HISTORY FOR THIS COMPANY from our database:\n${stringifyRows(result)}\nUse this to assess hiring patterns — frequent reposting of the same role may indicate high turnover.\n\n`;
+      return `${DB_DATA_CONTEXT_PREFIX.cultureDecoder}${stringifyRows(result)}\n\n`;
     }
 
     if (toolName === 'resume-optimize' || toolName === 'resume-headline' || toolName === 'linkedin-analyzer') {
@@ -493,9 +493,12 @@ async function fetchToolDataContext(toolName, body, supabase) {
       if (!result.length) return '';
 
       if (toolName === 'linkedin-analyzer') {
-        return `TRENDING CREATOR ECONOMY JOB TITLES from 17,769 posts:\n${stringifyRows(result)}\nRecommend these keywords for LinkedIn profile optimization.\n\n`;
+        return `${DB_DATA_CONTEXT_PREFIX.linkedinAnalyzer}${stringifyRows(result)}\n\n`;
       }
-      return `MOST COMMON JOB TITLES IN OUR DATABASE matching this role:\n${stringifyRows(result)}\nUse these exact titles as keyword recommendations for ATS optimization.\n\n`;
+      if (toolName === 'resume-headline') {
+        return `${DB_DATA_CONTEXT_PREFIX.resumeHeadline}${stringifyRows(result)}\n\n`;
+      }
+      return `${DB_DATA_CONTEXT_PREFIX.resumeOptimize}${stringifyRows(result)}\n\n`;
     }
 
     if (toolName === 'cover-letter') {
@@ -507,7 +510,7 @@ async function fetchToolDataContext(toolName, body, supabase) {
         .ilike('company', `%${keyword}%`)
         .limit(10);
       if (error || !data?.length) return '';
-      return `WE FOUND THESE ROLES AT THIS COMPANY in our database:\n${stringifyRows(data)}\nUse this context to show the applicant has done company research if relevant.\n\n`;
+      return `${DB_DATA_CONTEXT_PREFIX.coverLetter}${stringifyRows(data)}\n\n`;
     }
   } catch {
     return '';
