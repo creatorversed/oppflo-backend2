@@ -9,6 +9,7 @@
  */
 
 const Anthropic = require('@anthropic-ai/sdk');
+const { createClient } = require('@supabase/supabase-js');
 const { TONE_INSTRUCTIONS } = require('../lib/ai-tools-prompts');
 
 const MODEL = 'claude-sonnet-4-20250514';
@@ -370,6 +371,151 @@ function validateApiKey(req) {
   return parts[1] === key;
 }
 
+function firstNonEmpty(...values) {
+  for (const v of values) {
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return '';
+}
+
+function stringifyRows(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return '';
+  return JSON.stringify(rows, null, 2);
+}
+
+async function fetchToolDataContext(toolName, body, supabase) {
+  if (!supabase) return '';
+
+  const jobKeyword = firstNonEmpty(body.job_title_keyword, body.job_title, body.role, body.target_role, body.title);
+  const extractedTitle = firstNonEmpty(body.extracted_title, body.job_title, body.role, body.target_role, body.title);
+  const companyName = firstNonEmpty(body.company_name, body.company);
+  const targetRole = firstNonEmpty(body.target_role, body.job_title, body.role, body.title);
+
+  try {
+    if (toolName === 'salary-negotiate') {
+      const keyword = jobKeyword || 'creator';
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('salary_min,salary_max,title,company,location')
+        .not('salary_min', 'is', null)
+        .ilike('title', `%${keyword}%`)
+        .limit(50);
+      if (error || !data?.length) return '';
+      return `REAL SALARY DATA FROM 17,769 CREATOR ECONOMY JOB POSTS:\n${stringifyRows(data)}\nUse this actual data to inform your salary ranges and negotiation advice. Cite specific numbers from this data.\n\n`;
+    }
+
+    if (toolName === 'career-quiz') {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('title,salary_min,salary_max')
+        .not('salary_min', 'is', null)
+        .limit(5000);
+      if (error || !data?.length) return '';
+      const agg = new Map();
+      for (const row of data) {
+        const key = String(row.title || '').trim();
+        if (!key) continue;
+        const entry = agg.get(key) || { title: key, frequency: 0, minSum: 0, maxSum: 0, minCount: 0, maxCount: 0 };
+        entry.frequency += 1;
+        if (typeof row.salary_min === 'number') {
+          entry.minSum += row.salary_min;
+          entry.minCount += 1;
+        }
+        if (typeof row.salary_max === 'number') {
+          entry.maxSum += row.salary_max;
+          entry.maxCount += 1;
+        }
+        agg.set(key, entry);
+      }
+      const ranked = [...agg.values()]
+        .map((e) => ({
+          title: e.title,
+          frequency: e.frequency,
+          avg_salary_min: e.minCount ? Math.round(e.minSum / e.minCount) : null,
+          avg_salary_max: e.maxCount ? Math.round(e.maxSum / e.maxCount) : null,
+        }))
+        .sort((a, b) => b.frequency - a.frequency)
+        .slice(0, 100);
+      if (!ranked.length) return '';
+      return `REAL JOB MARKET DATA FROM 17,769 CREATOR ECONOMY POSTS: Here are the most common roles and their salary ranges:\n${stringifyRows(ranked)}\nUse these actual role titles and salary data in your career path recommendations.\n\n`;
+    }
+
+    if (toolName === 'job-analyzer') {
+      const keyword = extractedTitle || 'creator';
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('salary_min,salary_max,title,location')
+        .not('salary_min', 'is', null)
+        .ilike('title', `%${keyword}%`)
+        .limit(30);
+      if (error || !data?.length) return '';
+      return `REAL COMPARABLE SALARY DATA:\n${stringifyRows(data)}\nUse this to estimate the salary range for the role being analyzed.\n\n`;
+    }
+
+    if (toolName === 'culture-decoder') {
+      const keyword = companyName;
+      if (!keyword) return '';
+      const { data, error } = await supabase.from('jobs').select('company,title').ilike('company', `%${keyword}%`).limit(1000);
+      if (error || !data?.length) return '';
+      const counts = new Map();
+      for (const row of data) {
+        const c = String(row.company || '').trim();
+        const t = String(row.title || '').trim();
+        if (!c || !t) continue;
+        const k = `${c}|||${t}`;
+        counts.set(k, (counts.get(k) || 0) + 1);
+      }
+      const result = [...counts.entries()]
+        .map(([k, postings]) => {
+          const [company, title] = k.split('|||');
+          return { company, title, postings };
+        })
+        .sort((a, b) => b.postings - a.postings)
+        .slice(0, 20);
+      if (!result.length) return '';
+      return `HIRING HISTORY FOR THIS COMPANY from our database:\n${stringifyRows(result)}\nUse this to assess hiring patterns — frequent reposting of the same role may indicate high turnover.\n\n`;
+    }
+
+    if (toolName === 'resume-optimize' || toolName === 'resume-headline' || toolName === 'linkedin-analyzer') {
+      const keyword = targetRole || 'creator';
+      const { data, error } = await supabase.from('jobs').select('title').ilike('title', `%${keyword}%`).limit(1000);
+      if (error || !data?.length) return '';
+      const counts = new Map();
+      for (const row of data) {
+        const t = String(row.title || '').trim();
+        if (!t) continue;
+        counts.set(t, (counts.get(t) || 0) + 1);
+      }
+      const result = [...counts.entries()]
+        .map(([title, frequency]) => ({ title, frequency }))
+        .sort((a, b) => b.frequency - a.frequency)
+        .slice(0, 20);
+      if (!result.length) return '';
+
+      if (toolName === 'linkedin-analyzer') {
+        return `TRENDING CREATOR ECONOMY JOB TITLES from 17,769 posts:\n${stringifyRows(result)}\nRecommend these keywords for LinkedIn profile optimization.\n\n`;
+      }
+      return `MOST COMMON JOB TITLES IN OUR DATABASE matching this role:\n${stringifyRows(result)}\nUse these exact titles as keyword recommendations for ATS optimization.\n\n`;
+    }
+
+    if (toolName === 'cover-letter') {
+      const keyword = companyName;
+      if (!keyword) return '';
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('title,company,salary_min,salary_max')
+        .ilike('company', `%${keyword}%`)
+        .limit(10);
+      if (error || !data?.length) return '';
+      return `WE FOUND THESE ROLES AT THIS COMPANY in our database:\n${stringifyRows(data)}\nUse this context to show the applicant has done company research if relevant.\n\n`;
+    }
+  } catch {
+    return '';
+  }
+
+  return '';
+}
+
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.status(204).end();
@@ -427,6 +573,10 @@ module.exports = async (req, res) => {
     return;
   }
 
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_KEY;
+  const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+
   let userMessage;
   try {
     userMessage = config.buildUser(body);
@@ -434,6 +584,11 @@ module.exports = async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.status(400).json({ error: 'Invalid input', details: e.message });
     return;
+  }
+
+  const dataContext = await fetchToolDataContext(toolName, body, supabase);
+  if (dataContext) {
+    userMessage = `${dataContext}${userMessage}`;
   }
 
   const anthropic = new Anthropic({ apiKey });

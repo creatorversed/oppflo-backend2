@@ -3,6 +3,15 @@
 -- 1. Add via column to jobs (for Google Jobs "via LinkedIn" etc.)
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS via text;
 
+-- 1b. Add source_id for external feed/job-board IDs and make it unique
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_id text;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_source_id_unique
+  ON jobs (source_id)
+  WHERE source_id IS NOT NULL;
+
+-- 1c. Add company_logo for XML feed enrichment
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS company_logo text;
+
 -- 2. Cache table for jobs API (6-hour sync)
 CREATE TABLE IF NOT EXISTS app_meta (
   key text PRIMARY KEY,

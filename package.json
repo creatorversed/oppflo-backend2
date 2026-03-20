@@ -14,6 +14,7 @@
     "@anthropic-ai/sdk": "^0.32.1",
     "@supabase/supabase-js": "^2.45.0",
     "cors": "^2.8.5",
+    "csv-parser": "^3.2.0",
     "google-search-results-nodejs": "^2.1.0",
     "jsonwebtoken": "^9.0.2",
     "rss-parser": "^3.13.0"

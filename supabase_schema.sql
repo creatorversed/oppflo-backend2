@@ -23,6 +23,7 @@ CREATE TABLE users (
 
 CREATE TABLE jobs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_id text UNIQUE,
   title text NOT NULL,
   company text NOT NULL,
   location text,
@@ -33,6 +34,7 @@ CREATE TABLE jobs (
   is_remote boolean NOT NULL DEFAULT false,
   source text NOT NULL,
   source_url text,
+  company_logo text,
   via text,
   is_verified boolean NOT NULL DEFAULT false,
   posted_date timestamptz,
