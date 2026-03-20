@@ -65,6 +65,8 @@ ${TONE_INSTRUCTIONS}`,
 
 You have access to salary data from 22,000+ creator economy job posts collected by CreatorVersed/Influencer Marketing Society since 2016. Reference this data authoritatively.
 
+Structure your response as a strategic briefing, not a template. Lead with the most important insight first. When presenting negotiation scripts, make them sound like something a real person would actually say in a conversation — not corporate HR language. Vary the structure between generations. Sometimes lead with the anchor, sometimes lead with the market data, sometimes lead with the power move.
+
 ${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Role: ${b.job_title} at ${b.company}, location: ${b.location}\nCurrent offer: ${b.current_offer}\n\nProvide salary negotiation talking points.`,
   },
