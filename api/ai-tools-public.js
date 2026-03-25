@@ -1,7 +1,7 @@
 /**
  * POST /api/ai-tools-public
  * Same 7 AI career tools as /api/ai-tools, but for anonymous use.
- * Auth: Authorization: Bearer <PUBLIC_TOOLS_KEY>. Rate limit: 3 requests per day per IP (in-memory).
+ * Auth: Authorization: Bearer <PUBLIC_TOOLS_KEY>. Rate limit: 200 requests per day per IP (in-memory).
  *
  * Body: { tool: string, ...toolParams }
  * Tools: cover-letter, resume-optimize, interview-prep, salary-negotiate,
@@ -13,7 +13,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { TONE_INSTRUCTIONS, DB_DATA_CONTEXT_PREFIX } = require('../lib/ai-tools-prompts');
 
 const MODEL = 'claude-sonnet-4-20250514';
-const PUBLIC_RATE_LIMIT_PER_DAY = 3;
+const PUBLIC_RATE_LIMIT_PER_DAY = 200;
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_TOKENS_CTX = 1500;
 
