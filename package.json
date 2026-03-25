@@ -17,6 +17,7 @@
     "csv-parser": "^3.2.0",
     "google-search-results-nodejs": "^2.1.0",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.1.1",
     "rss-parser": "^3.13.0"
   }
 }

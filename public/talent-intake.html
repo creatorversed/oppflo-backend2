@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IMS Talent Collective Application</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --card: #111111;
+    --card2: #181818;
+    --border: #2a2a2a;
+    --pink: #E91E63;
+    --pink-dark: #c2185b;
+    --pink-glow: rgba(233,30,99,0.18);
+    --text: #f0f0f0;
+    --muted: #888;
+    --label: #ccc;
+    --warn-bg: rgba(233,30,99,0.10);
+    --warn-border: rgba(233,30,99,0.4);
+    --input-bg: #141414;
+    --input-focus: #1e1e1e;
+    --radius: 10px;
+    --success: #00c896;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    min-height: 100vh;
+    padding: 0 0 60px;
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a0a12 50%, #0a0a0a 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 24px 40px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -60px; left: 50%; transform: translateX(-50%);
+    width: 500px; height: 200px;
+    background: radial-gradient(ellipse, rgba(233,30,99,0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .header-eyebrow {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 13px;
+    letter-spacing: 4px;
+    color: var(--pink);
+    margin-bottom: 12px;
+  }
+  .header h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(36px, 6vw, 64px);
+    letter-spacing: 2px;
+    line-height: 1;
+    color: #fff;
+    margin-bottom: 16px;
+  }
+  .header h1 span { color: var(--pink); }
+  .header p {
+    color: var(--muted);
+    max-width: 560px;
+    margin: 0 auto;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  .header-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    border-radius: 100px;
+    padding: 6px 16px;
+    font-size: 13px;
+    color: var(--pink);
+    margin-top: 20px;
+    font-weight: 500;
+  }
+
+  /* Form wrapper */
+  .form-wrap {
+    max-width: 760px;
+    margin: 40px auto 0;
+    padding: 0 20px;
+  }
+
+  /* Section card */
+  .section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px 28px 24px;
+    margin-bottom: 20px;
+  }
+  .section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 2px;
+    color: var(--pink);
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title span { font-size: 16px; }
+
+  /* Grid */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-1 { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (max-width: 560px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* Field */
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--label);
+    letter-spacing: 0.3px;
+  }
+  .field label .req { color: var(--pink); margin-left: 2px; }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="number"],
+  select {
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    padding: 11px 14px;
+    width: 100%;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    outline: none;
+    -webkit-appearance: none;
+  }
+  input:focus, select:focus {
+    border-color: var(--pink);
+    background: var(--input-focus);
+    box-shadow: 0 0 0 3px var(--pink-glow);
+  }
+  input::placeholder { color: #444; }
+  select { cursor: pointer; }
+  select option { background: #1a1a1a; color: var(--text); }
+
+  /* File upload */
+  .file-upload-area {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 28px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: var(--input-bg);
+    position: relative;
+  }
+  .file-upload-area:hover, .file-upload-area.dragover {
+    border-color: var(--pink);
+    background: var(--warn-bg);
+  }
+  .file-upload-area input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .file-icon { margin-bottom: 8px; display:flex; justify-content:center; }
+  .file-upload-area .file-label {
+    font-size: 14px; color: var(--muted); line-height: 1.5;
+  }
+  .file-upload-area .file-label strong { color: var(--pink); }
+  .file-name-display {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--success);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .file-name-display.visible { display: flex; }
+
+  /* Warning box */
+  .warn-box {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    font-size: 13px;
+    color: #f0a0b8;
+    line-height: 1.5;
+    margin-bottom: 16px;
+  }
+  .warn-box strong { color: var(--pink); }
+
+  /* Checkboxes / radios */
+  .check-group, .radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .check-item, .radio-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .check-item input, .radio-item input {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    background: var(--input-bg);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s, border-color 0.15s;
+    position: relative;
+  }
+  .radio-item input { border-radius: 50%; }
+  .check-item input:checked, .radio-item input:checked {
+    background: var(--pink);
+    border-color: var(--pink);
+  }
+  .check-item input:checked::after {
+    content: '✓';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: #fff;
+    font-size: 11px;
+    font-weight: bold;
+  }
+  .radio-item input:checked::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #fff;
+  }
+  .check-item label, .radio-item label {
+    font-size: 14px;
+    color: var(--label);
+    cursor: pointer;
+  }
+
+  /* Creator section */
+  .creator-note {
+    background: linear-gradient(135deg, rgba(233,30,99,0.08), rgba(233,30,99,0.04));
+    border: 1px solid var(--warn-border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: #e0a0b4;
+    line-height: 1.6;
+  }
+
+  /* Social grid */
+  .social-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 560px) { .social-grid { grid-template-columns: 1fr; } }
+
+  /* Consent */
+  .consent-box {
+    background: #0f0f0f;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 0;
+  }
+
+  /* Submit */
+  .submit-area {
+    margin-top: 28px;
+    text-align: center;
+  }
+  .btn-submit {
+    background: var(--pink);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    padding: 16px 48px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+    box-shadow: 0 4px 24px rgba(233,30,99,0.3);
+    width: 100%;
+    max-width: 400px;
+  }
+  .btn-submit:hover {
+    background: var(--pink-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(233,30,99,0.4);
+  }
+  .btn-submit:active { transform: translateY(0); }
+  .btn-submit:disabled {
+    opacity: 0.6; cursor: not-allowed; transform: none;
+  }
+
+  /* Progress bar */
+  .progress-bar-wrap {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-bottom: 32px;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--pink), #ff6090);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.4s ease;
+  }
+
+  /* Status messages */
+  .status-msg {
+    margin-top: 16px;
+    padding: 14px 18px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    display: none;
+    text-align: left;
+  }
+  .status-msg.show { display: block; }
+  .status-msg.success {
+    background: rgba(0,200,150,0.1);
+    border: 1px solid rgba(0,200,150,0.3);
+    color: var(--success);
+  }
+  .status-msg.error {
+    background: rgba(233,30,99,0.1);
+    border: 1px solid var(--warn-border);
+    color: #ff7099;
+  }
+
+  /* Spinner */
+  .spinner {
+    display: inline-block;
+    width: 18px; height: 18px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Success screen */
+  .success-screen {
+    display: none;
+    text-align: center;
+    padding: 60px 20px;
+  }
+  .success-screen.show { display: block; }
+  .success-icon { margin-bottom: 20px; display:flex; justify-content:center; }
+  .success-screen h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 40px;
+    letter-spacing: 2px;
+    color: var(--success);
+    margin-bottom: 12px;
+  }
+  .success-screen p { color: var(--muted); font-size: 15px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-eyebrow">INFLUENCER MARKETING SOCIETY</div>
+  <h1>CREATORVERSED <span>Talent</span> Collective</h1>
+  <p>We partner with top talent and connect you to opportunities that match your career goals, skill set and experience.</p>
+  <div class="header-stat">✦ Join 100K+ Creator Economy Professionals</div>
+</div>
+
+<div class="form-wrap">
+
+  <!-- Progress -->
+  <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+
+  <form id="talentForm" novalidate>
+
+    <!-- SECTION 1: Personal Info -->
+    <div class="section">
+      <div class="section-title"><span>01</span> Personal Information</div>
+      <div class="grid-2">
+        <div class="field">
+          <label>First Name<span class="req">*</span></label>
+          <input type="text" name="first_name" placeholder="Jane" required>
+        </div>
+        <div class="field">
+          <label>Last Name<span class="req">*</span></label>
+          <input type="text" name="last_name" placeholder="Smith" required>
+        </div>
+        <div class="field">
+          <label>Current Title<span class="req">*</span></label>
+          <input type="text" name="current_title" placeholder="Content Creator" required>
+        </div>
+        <div class="field">
+          <label>Current Company</label>
+          <input type="text" name="current_company" placeholder="Self-Employed">
+        </div>
+        <div class="field">
+          <label>Phone Number<span class="req">*</span></label>
+          <input type="tel" name="phone" placeholder="+1 (555) 000-0000" required>
+        </div>
+        <div class="field">
+          <label>Email Address<span class="req">*</span></label>
+          <input type="email" name="email" placeholder="jane@email.com" required>
+        </div>
+      </div>
+      <div class="grid-1" style="margin-top:16px">
+        <div class="field">
+          <label>LinkedIn URL<span class="req">*</span></label>
+          <input type="url" name="linkedin_url" placeholder="https://linkedin.com/in/yourname" required>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 2: Resume -->
+    <div class="section">
+      <div class="section-title"><span>02</span> Resume & Portfolio</div>
+
+      <div class="warn-box">
+        <strong>⚠️ NOTE TO CREATIVES ⚠️</strong><br>
+        Please include your media kit, portfolio, or BOTH to be considered.
+      </div>
+
+      <div class="field" style="margin-bottom:16px">
+        <label>Resume<span class="req">*</span></label>
+        <div class="file-upload-area" id="resumeDropZone">
+          <input type="file" name="resume_file" id="resumeFile" accept=".pdf,.doc,.docx" required>
+          <div class="file-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          </div>
+          <div class="file-label">
+            <strong>Click to upload</strong> or drag and drop<br>
+            .pdf, .doc, .docx accepted
+          </div>
+          <div class="file-name-display" id="resumeFileName">✅ <span id="resumeFileNameText"></span></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label>Portfolio URL</label>
+          <input type="url" name="portfolio_url" placeholder="https://yourportfolio.com">
+        </div>
+        <div class="field">
+          <label>Media Kit URL</label>
+          <input type="url" name="media_kit_url" placeholder="https://yourmediakit.com">
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 3: Opportunities -->
+    <div class="section">
+      <div class="section-title"><span>03</span> Opportunities of Interest</div>
+      <div class="field">
+        <label>Select all that apply<span class="req">*</span></label>
+        <div class="check-group">
+          <label class="check-item"><input type="checkbox" name="opportunities" value="Full-Time"><label>Full-Time</label></label>
+          <label class="check-item"><input type="checkbox" name="opportunities" value="Part-Time"><label>Part-Time</label></label>
+          <label class="check-item"><input type="checkbox" name="opportunities" value="Contract-to-Hire"><label>Contract-to-Hire</label></label>
+          <label class="check-item"><input type="checkbox" name="opportunities" value="Freelance / Contract"><label>Freelance / Contract</label></label>
+          <label class="check-item"><input type="checkbox" name="opportunities" value="Influencer Collabs"><label>Influencer Collabs</label></label>
+          <label class="check-item"><input type="checkbox" name="opportunities" value="UGC Partnerships"><label>UGC Partnerships</label></label>
+          <label class="check-item"><input type="checkbox" name="opportunities" value="Other"><label>Other</label></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 4: Career Level -->
+    <div class="section">
+      <div class="section-title"><span>04</span> Career Level</div>
+      <div class="field">
+        <label>Select your career level<span class="req">*</span></label>
+        <div class="radio-group" style="flex-direction: column; gap: 10px;">
+          <label class="radio-item"><input type="radio" name="career_level" value="Social Media Content Creator/Influencer" required><label>Social Media Content Creator / Influencer</label></label>
+          <label class="radio-item"><input type="radio" name="career_level" value="UGC Creator"><label>UGC Creator</label></label>
+          <label class="radio-item"><input type="radio" name="career_level" value="Executive"><label>Executive</label></label>
+          <label class="radio-item"><input type="radio" name="career_level" value="Experienced Professional"><label>Experienced Professional</label></label>
+          <label class="radio-item"><input type="radio" name="career_level" value="Early Career Professional"><label>Early Career Professional</label></label>
+          <label class="radio-item"><input type="radio" name="career_level" value="Freelancer/Contractor"><label>Freelancer / Contractor</label></label>
+          <label class="radio-item"><input type="radio" name="career_level" value="Intern"><label>Intern</label></label>
+          <label class="radio-item"><input type="radio" name="career_level" value="Student"><label>Student</label></label>
+          <label class="radio-item"><input type="radio" name="career_level" value="Other"><label>Other</label></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 5: Creator Social -->
+    <div class="section">
+      <div class="section-title"><span>05</span> Content Creator Profiles</div>
+      <div class="creator-note">
+        ✦ <strong style="color:var(--pink)">CONTENT CREATORS + SOCIAL MEDIA INFLUENCERS</strong> — We are always looking to work with creators who consistently produce great content and align with IMS culture by authentically living your purpose. Whether you have thousands or millions of followers, we are actively pursuing meaningful relationships with creators who elevate individuality.<br><br>
+        Please fill out your <strong>Total Follower Count</strong> + at least <strong>ONE</strong> social platform URL below to be considered.
+      </div>
+
+      <div class="field" style="margin-bottom:16px; max-width: 280px;">
+        <label>Total Follower Count</label>
+        <input type="number" name="total_followers" placeholder="e.g. 25000" min="0">
+      </div>
+
+      <div class="social-grid">
+        <div class="field"><label>BlueSky URL</label><input type="url" name="bluesky_url" placeholder="https://bsky.app/..."></div>
+        <div class="field"><label>YouTube URL</label><input type="url" name="youtube_url" placeholder="https://youtube.com/..."></div>
+        <div class="field"><label>TikTok URL</label><input type="url" name="tiktok_url" placeholder="https://tiktok.com/@..."></div>
+        <div class="field"><label>Instagram URL</label><input type="url" name="instagram_url" placeholder="https://instagram.com/..."></div>
+        <div class="field"><label>Threads URL</label><input type="url" name="threads_url" placeholder="https://threads.net/@..."></div>
+        <div class="field"><label>Facebook URL</label><input type="url" name="facebook_url" placeholder="https://facebook.com/..."></div>
+        <div class="field"><label>Twitch URL</label><input type="url" name="twitch_url" placeholder="https://twitch.tv/..."></div>
+        <div class="field"><label>Substack URL</label><input type="url" name="substack_url" placeholder="https://yourname.substack.com"></div>
+        <div class="field"><label>OnlyFans URL</label><input type="url" name="onlyfans_url" placeholder="https://onlyfans.com/..."></div>
+        <div class="field"><label>Other URL</label><input type="url" name="other_url" placeholder="https://..."></div>
+      </div>
+    </div>
+
+    <!-- SECTION 6: IMS Solution -->
+    <div class="section">
+      <div class="section-title"><span>06</span> CreatorVersed Talent Solution</div>
+      <div class="field">
+        <label>Which CreatorVersed Talent Solutions are you interested in? (Select all that apply)<span class="req">*</span></label>
+        <div class="check-group" style="flex-direction: column; gap: 10px; margin-top: 8px;">
+          <label class="check-item"><input type="checkbox" name="talent_solution" value="Permanent Placement"><label>Permanent Placement</label></label>
+          <label class="check-item"><input type="checkbox" name="talent_solution" value="Project / Contract Match"><label>Project / Contract Match</label></label>
+          <label class="check-item"><input type="checkbox" name="talent_solution" value="1:1 Mentorship Match"><label>1:1 Mentorship Match</label></label>
+          <label class="check-item"><input type="checkbox" name="talent_solution" value="Interview Prep + Advice"><label>Interview Prep + Advice</label></label>
+          <label class="check-item"><input type="checkbox" name="talent_solution" value="Resume Writing + Advice"><label>Resume Writing + Advice</label></label>
+          <label class="check-item"><input type="checkbox" name="talent_solution" value="None"><label>None</label></label>
+          <label class="check-item"><input type="checkbox" name="talent_solution" value="Other"><label>Other</label></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 7: Spotlight -->
+    <div class="section">
+      <div class="section-title"><span>07</span> Newsletter Spotlight</div>
+      <div class="field">
+        <label>Would you like to be featured as a 'Spotlight Talent' in our industry newsletter/blog <em>CREATORVERSED</em>?<span class="req">*</span></label>
+        <div class="radio-group" style="flex-direction: column; gap: 10px; margin-top: 8px;">
+          <label class="radio-item"><input type="radio" name="spotlight" value="Yes" required><label>Yes!</label></label>
+          <label class="radio-item"><input type="radio" name="spotlight" value="Yes - Anonymized"><label>Yes, but I would like to be anonymized.</label></label>
+          <label class="radio-item"><input type="radio" name="spotlight" value="Not right now"><label>Not right now.</label></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 8: Consent -->
+    <div class="section">
+      <div class="section-title"><span>08</span> Acknowledgment</div>
+      <div class="consent-box" style="margin-bottom:16px">
+        I UNDERSTAND THAT BY FILLING OUT THIS FORM I AM SUBMITTING MYSELF TO BE CONSIDERED FOR THE IMS TALENT NETWORK, BUT THAT DOES NOT GUARANTEE I WILL BE SELECTED TO PARTICIPATE.
+      </div>
+      <div class="field">
+        <div class="radio-group" style="flex-direction: column; gap: 10px;">
+          <label class="radio-item"><input type="radio" name="consent" value="Yes" required><label>Yes, I understand and agree.</label></label>
+          <label class="radio-item"><input type="radio" name="consent" value="No"><label>No</label></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="submit-area">
+      <button type="submit" class="btn-submit" id="submitBtn">Submit Application</button>
+      <div class="status-msg" id="statusMsg"></div>
+    </div>
+
+  </form>
+
+  <!-- Success screen -->
+  <div class="success-screen" id="successScreen">
+    <div class="success-icon">
+      <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>
+    </div>
+    <h2>Application Received!</h2>
+    <p>Thank you for joining the IMS Talent Collective.<br>We'll be in touch when opportunities matching your profile arise.</p>
+  </div>
+
+</div>
+
+<script>
+  // ─── CONFIG — swap these in before deploying ───────────────────────────
+  const BACKEND_URL = 'https://oppflo-backend2.vercel.app'; // your Vercel backend
+  // ────────────────────────────────────────────────────────────────────────
+
+  // File upload UX
+  const resumeFile = document.getElementById('resumeFile');
+  const resumeDropZone = document.getElementById('resumeDropZone');
+  const resumeFileName = document.getElementById('resumeFileName');
+  const resumeFileNameText = document.getElementById('resumeFileNameText');
+
+  resumeFile.addEventListener('change', () => {
+    if (resumeFile.files[0]) {
+      resumeFileNameText.textContent = resumeFile.files[0].name;
+      resumeFileName.classList.add('visible');
+    }
+  });
+
+  ['dragover','dragenter'].forEach(e => {
+    resumeDropZone.addEventListener(e, ev => { ev.preventDefault(); resumeDropZone.classList.add('dragover'); });
+  });
+  ['dragleave','drop'].forEach(e => {
+    resumeDropZone.addEventListener(e, ev => { resumeDropZone.classList.remove('dragover'); });
+  });
+  resumeDropZone.addEventListener('drop', ev => {
+    ev.preventDefault();
+    if (ev.dataTransfer.files[0]) {
+      resumeFile.files = ev.dataTransfer.files;
+      resumeFileNameText.textContent = ev.dataTransfer.files[0].name;
+      resumeFileName.classList.add('visible');
+    }
+  });
+
+  // Progress bar — % of required fields filled
+  function updateProgress() {
+    const required = document.querySelectorAll('[required]');
+    let filled = 0;
+    required.forEach(el => {
+      if (el.type === 'radio' || el.type === 'checkbox') {
+        const group = document.querySelectorAll(`[name="${el.name}"]:checked`);
+        if (group.length > 0) filled++;
+      } else if (el.value.trim()) filled++;
+    });
+    // deduplicate radio groups
+    const radioGroups = new Set([...document.querySelectorAll('input[type="radio"][required]')].map(r => r.name));
+    const totalRequired = document.querySelectorAll('input:not([type="radio"]):not([type="checkbox"])[required], input[type="file"][required]').length + radioGroups.size;
+    const pct = Math.min(100, Math.round((filled / totalRequired) * 100));
+    document.getElementById('progressBar').style.width = pct + '%';
+  }
+  document.getElementById('talentForm').addEventListener('input', updateProgress);
+  document.getElementById('talentForm').addEventListener('change', updateProgress);
+
+  // Form submit
+  document.getElementById('talentForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const btn = document.getElementById('submitBtn');
+    const statusMsg = document.getElementById('statusMsg');
+    statusMsg.className = 'status-msg';
+    statusMsg.style.display = 'none';
+
+    // Basic validation
+    const consent = document.querySelector('input[name="consent"]:checked');
+    if (!consent || consent.value !== 'Yes') {
+      showStatus('error', 'Please acknowledge the terms in Section 08 to submit.');
+      return;
+    }
+    if (!resumeFile.files[0]) {
+      showStatus('error', 'Please upload your resume.');
+      return;
+    }
+    const opps = document.querySelectorAll('input[name="opportunities"]:checked');
+    if (opps.length === 0) {
+      showStatus('error', 'Please select at least one opportunity type.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Submitting...';
+
+    try {
+      const formData = new FormData();
+      const form = document.getElementById('talentForm');
+
+      // Text fields
+      const textFields = ['first_name','last_name','current_title','current_company','phone','email',
+        'linkedin_url','portfolio_url','media_kit_url','total_followers',
+        'bluesky_url','youtube_url','tiktok_url','instagram_url','threads_url',
+        'facebook_url','twitch_url','substack_url','onlyfans_url','other_url'];
+      textFields.forEach(f => {
+        const el = form.querySelector(`[name="${f}"]`);
+        if (el && el.value) formData.append(f, el.value);
+      });
+
+      // Radio fields
+      ['career_level','spotlight','consent'].forEach(f => {
+        const el = form.querySelector(`input[name="${f}"]:checked`);
+        if (el) formData.append(f, el.value);
+      });
+
+      // Checkboxes — opportunities
+      const opportunities = [...document.querySelectorAll('input[name="opportunities"]:checked')].map(c => c.value);
+      formData.append('opportunities', JSON.stringify(opportunities));
+
+      // Checkboxes — talent solutions (multi-select)
+      const talentSolutions = [...document.querySelectorAll('input[name="talent_solution"]:checked')].map(c => c.value);
+      formData.append('talent_solution', JSON.stringify(talentSolutions));
+
+      // Resume file
+      formData.append('resume', resumeFile.files[0]);
+
+      const res = await fetch(`${BACKEND_URL}/api/talent?action=submit`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        document.getElementById('talentForm').style.display = 'none';
+        document.getElementById('progressBar').parentElement.style.display = 'none';
+        document.getElementById('successScreen').classList.add('show');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        throw new Error(data.message || 'Submission failed.');
+      }
+    } catch (err) {
+      showStatus('error', err.message || 'Something went wrong. Please try again.');
+      btn.disabled = false;
+      btn.innerHTML = 'Submit Application';
+    }
+  });
+
+  function showStatus(type, msg) {
+    const el = document.getElementById('statusMsg');
+    el.className = `status-msg ${type} show`;
+    el.textContent = msg;
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+</script>
+</body>
+</html>
