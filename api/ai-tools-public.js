@@ -539,15 +539,17 @@ module.exports = async (req, res) => {
   }
 
   const ip = getClientIp(req);
-  const { allowed, remaining } = checkRateLimit(ip);
-  if (!allowed) {
-    res.setHeader('Content-Type', 'application/json');
-    res.status(429).json({
-      error: 'Rate limit exceeded',
-      detail: `${PUBLIC_RATE_LIMIT_PER_DAY} requests per day per IP for anonymous use.`,
-    });
-    return;
-  }
+  // TESTING ONLY - RE-ENABLE BEFORE LAUNCH.
+  // Rate limiting is intentionally bypassed so all requests are allowed.
+  // const { allowed, remaining } = checkRateLimit(ip);
+  // if (!allowed) {
+  //   res.setHeader('Content-Type', 'application/json');
+  //   res.status(429).json({
+  //     error: 'Rate limit exceeded',
+  //     detail: `${PUBLIC_RATE_LIMIT_PER_DAY} requests per day per IP for anonymous use.`,
+  //   });
+  //   return;
+  // }
 
   const body = parseBody(req);
   const toolName = (body.tool || '').trim().toLowerCase();
@@ -612,7 +614,9 @@ module.exports = async (req, res) => {
     const outputTokens = message.usage?.output_tokens ?? 0;
     const totalTokens = inputTokens + outputTokens;
 
-    recordRequest(ip);
+    // TESTING ONLY - RE-ENABLE BEFORE LAUNCH.
+    // Keep request tracking disabled while rate limiting is bypassed.
+    // recordRequest(ip);
 
     res.setHeader('Content-Type', 'application/json');
     res.status(200).json({
