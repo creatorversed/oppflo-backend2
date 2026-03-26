@@ -2,6 +2,7 @@
  * POST /api/ai-tools-public
  * Same 7 AI career tools as /api/ai-tools, but for anonymous use.
  * Auth: Authorization: Bearer <PUBLIC_TOOLS_KEY>. Rate limit: 200 requests per day per IP (in-memory).
+ * COST OPTIMIZATION - data context capped at 1500 chars, max_tokens 1000, query limit 15 rows
  *
  * Body: { tool: string, ...toolParams }
  * Tools: cover-letter, resume-optimize, interview-prep, salary-negotiate,
@@ -16,6 +17,10 @@ const MODEL = 'claude-sonnet-4-20250514';
 const PUBLIC_RATE_LIMIT_PER_DAY = 200;
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_TOKENS_CTX = 1500;
+const MAX_CLAUDE_TOKENS = 1000;
+const JOB_QUERY_LIMIT = 15;
+const DATA_CONTEXT_CHAR_LIMIT = 1500;
+const DATA_CONTEXT_OVERFLOW_SUFFIX = '...and more matching roles in our database.';
 
 function buildUserContext(b) {
   const entries = Object.entries(b)
@@ -385,6 +390,24 @@ function stringifyRows(rows) {
   return JSON.stringify(rows, null, 2);
 }
 
+function toContextJobRow(row = {}) {
+  return {
+    title: row.title ?? null,
+    company: row.company ?? null,
+    salary_min: row.salary_min ?? null,
+    salary_max: row.salary_max ?? null,
+    location: row.location ?? null,
+  };
+}
+
+function buildCappedDataContext(prefix, rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return '';
+  const raw = `${prefix}${stringifyRows(rows)}\n\n`;
+  if (raw.length <= DATA_CONTEXT_CHAR_LIMIT) return raw;
+  const keep = Math.max(0, DATA_CONTEXT_CHAR_LIMIT - DATA_CONTEXT_OVERFLOW_SUFFIX.length);
+  return `${raw.slice(0, keep)}${DATA_CONTEXT_OVERFLOW_SUFFIX}`;
+}
+
 async function fetchToolDataContext(toolName, body, supabase) {
   if (!supabase) return '';
 
@@ -401,106 +424,67 @@ async function fetchToolDataContext(toolName, body, supabase) {
         .select('salary_min,salary_max,title,company,location')
         .not('salary_min', 'is', null)
         .ilike('title', `%${keyword}%`)
-        .limit(50);
+        .limit(JOB_QUERY_LIMIT);
       if (error || !data?.length) return '';
-      return `${DB_DATA_CONTEXT_PREFIX.salaryNegotiate}${stringifyRows(data)}\n\n`;
+      const contextRows = data.map(toContextJobRow);
+      return buildCappedDataContext(DB_DATA_CONTEXT_PREFIX.salaryNegotiate, contextRows);
     }
 
     if (toolName === 'career-quiz') {
       const { data, error } = await supabase
         .from('jobs')
-        .select('title,salary_min,salary_max')
+        .select('title,company,salary_min,salary_max,location')
         .not('salary_min', 'is', null)
-        .limit(5000);
+        .limit(JOB_QUERY_LIMIT);
       if (error || !data?.length) return '';
-      const agg = new Map();
-      for (const row of data) {
-        const key = String(row.title || '').trim();
-        if (!key) continue;
-        const entry = agg.get(key) || { title: key, frequency: 0, minSum: 0, maxSum: 0, minCount: 0, maxCount: 0 };
-        entry.frequency += 1;
-        if (typeof row.salary_min === 'number') {
-          entry.minSum += row.salary_min;
-          entry.minCount += 1;
-        }
-        if (typeof row.salary_max === 'number') {
-          entry.maxSum += row.salary_max;
-          entry.maxCount += 1;
-        }
-        agg.set(key, entry);
-      }
-      const ranked = [...agg.values()]
-        .map((e) => ({
-          title: e.title,
-          frequency: e.frequency,
-          avg_salary_min: e.minCount ? Math.round(e.minSum / e.minCount) : null,
-          avg_salary_max: e.maxCount ? Math.round(e.maxSum / e.maxCount) : null,
-        }))
-        .sort((a, b) => b.frequency - a.frequency)
-        .slice(0, 100);
-      if (!ranked.length) return '';
-      return `${DB_DATA_CONTEXT_PREFIX.careerQuiz}${stringifyRows(ranked)}\n\n`;
+      const contextRows = data.map(toContextJobRow);
+      return buildCappedDataContext(DB_DATA_CONTEXT_PREFIX.careerQuiz, contextRows);
     }
 
     if (toolName === 'job-analyzer') {
       const keyword = extractedTitle || 'creator';
       const { data, error } = await supabase
         .from('jobs')
-        .select('salary_min,salary_max,title,location')
+        .select('salary_min,salary_max,title,company,location')
         .not('salary_min', 'is', null)
         .ilike('title', `%${keyword}%`)
-        .limit(30);
+        .limit(JOB_QUERY_LIMIT);
       if (error || !data?.length) return '';
-      return `${DB_DATA_CONTEXT_PREFIX.jobAnalyzer}${stringifyRows(data)}\n\n`;
+      const contextRows = data.map(toContextJobRow);
+      return buildCappedDataContext(DB_DATA_CONTEXT_PREFIX.jobAnalyzer, contextRows);
     }
 
     if (toolName === 'culture-decoder') {
       const keyword = companyName;
       if (!keyword) return '';
-      const { data, error } = await supabase.from('jobs').select('company,title').ilike('company', `%${keyword}%`).limit(1000);
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('title,company,salary_min,salary_max,location')
+        .ilike('company', `%${keyword}%`)
+        .limit(JOB_QUERY_LIMIT);
       if (error || !data?.length) return '';
-      const counts = new Map();
-      for (const row of data) {
-        const c = String(row.company || '').trim();
-        const t = String(row.title || '').trim();
-        if (!c || !t) continue;
-        const k = `${c}|||${t}`;
-        counts.set(k, (counts.get(k) || 0) + 1);
-      }
-      const result = [...counts.entries()]
-        .map(([k, postings]) => {
-          const [company, title] = k.split('|||');
-          return { company, title, postings };
-        })
-        .sort((a, b) => b.postings - a.postings)
-        .slice(0, 20);
-      if (!result.length) return '';
-      return `${DB_DATA_CONTEXT_PREFIX.cultureDecoder}${stringifyRows(result)}\n\n`;
+      const contextRows = data.map(toContextJobRow);
+      return buildCappedDataContext(DB_DATA_CONTEXT_PREFIX.cultureDecoder, contextRows);
     }
 
     if (toolName === 'resume-optimize' || toolName === 'resume-headline' || toolName === 'linkedin-analyzer') {
       const keyword = targetRole || 'creator';
-      const { data, error } = await supabase.from('jobs').select('title').ilike('title', `%${keyword}%`).limit(1000);
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('title,company,salary_min,salary_max,location')
+        .ilike('title', `%${keyword}%`)
+        .limit(JOB_QUERY_LIMIT);
       if (error || !data?.length) return '';
-      const counts = new Map();
-      for (const row of data) {
-        const t = String(row.title || '').trim();
-        if (!t) continue;
-        counts.set(t, (counts.get(t) || 0) + 1);
-      }
-      const result = [...counts.entries()]
-        .map(([title, frequency]) => ({ title, frequency }))
-        .sort((a, b) => b.frequency - a.frequency)
-        .slice(0, 20);
-      if (!result.length) return '';
+      const contextRows = data.map(toContextJobRow);
+      if (!contextRows.length) return '';
 
       if (toolName === 'linkedin-analyzer') {
-        return `${DB_DATA_CONTEXT_PREFIX.linkedinAnalyzer}${stringifyRows(result)}\n\n`;
+        return buildCappedDataContext(DB_DATA_CONTEXT_PREFIX.linkedinAnalyzer, contextRows);
       }
       if (toolName === 'resume-headline') {
-        return `${DB_DATA_CONTEXT_PREFIX.resumeHeadline}${stringifyRows(result)}\n\n`;
+        return buildCappedDataContext(DB_DATA_CONTEXT_PREFIX.resumeHeadline, contextRows);
       }
-      return `${DB_DATA_CONTEXT_PREFIX.resumeOptimize}${stringifyRows(result)}\n\n`;
+      return buildCappedDataContext(DB_DATA_CONTEXT_PREFIX.resumeOptimize, contextRows);
     }
 
     if (toolName === 'cover-letter') {
@@ -508,11 +492,12 @@ async function fetchToolDataContext(toolName, body, supabase) {
       if (!keyword) return '';
       const { data, error } = await supabase
         .from('jobs')
-        .select('title,company,salary_min,salary_max')
+        .select('title,company,salary_min,salary_max,location')
         .ilike('company', `%${keyword}%`)
-        .limit(10);
+        .limit(JOB_QUERY_LIMIT);
       if (error || !data?.length) return '';
-      return `${DB_DATA_CONTEXT_PREFIX.coverLetter}${stringifyRows(data)}\n\n`;
+      const contextRows = data.map(toContextJobRow);
+      return buildCappedDataContext(DB_DATA_CONTEXT_PREFIX.coverLetter, contextRows);
     }
   } catch {
     return '';
@@ -603,7 +588,7 @@ module.exports = async (req, res) => {
   try {
     const message = await anthropic.messages.create({
       model: MODEL,
-      max_tokens: config.maxTokens,
+      max_tokens: MAX_CLAUDE_TOKENS,
       system: config.system,
       messages: [{ role: 'user', content: userMessage }],
     });
