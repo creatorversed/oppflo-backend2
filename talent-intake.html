@@ -180,7 +180,7 @@
   .file-upload-area input[type="file"] {
     position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
   }
-  .file-icon { margin-bottom: 8px; display:flex; justify-content:center; }
+  .file-icon { font-size: 28px; margin-bottom: 8px; }
   .file-upload-area .file-label {
     font-size: 14px; color: var(--muted); line-height: 1.5;
   }
@@ -382,7 +382,7 @@
     padding: 60px 20px;
   }
   .success-screen.show { display: block; }
-  .success-icon { margin-bottom: 20px; display:flex; justify-content:center; }
+  .success-icon { font-size: 64px; margin-bottom: 20px; }
   .success-screen h2 {
     font-family: 'Bebas Neue', sans-serif;
     font-size: 40px;
@@ -397,9 +397,9 @@
 
 <div class="header">
   <div class="header-eyebrow">INFLUENCER MARKETING SOCIETY</div>
-  <h1>CREATORVERSED <span>Talent</span> Collective</h1>
+  <h1>IMS <span>Talent</span> Collective</h1>
   <p>We partner with top talent and connect you to opportunities that match your career goals, skill set and experience.</p>
-  <div class="header-stat">✦ Join 100K+ Creator Economy Professionals</div>
+  <div class="header-stat">✦ Join 50K+ Creator Economy Professionals</div>
 </div>
 
 <div class="form-wrap">
@@ -459,9 +459,7 @@
         <label>Resume<span class="req">*</span></label>
         <div class="file-upload-area" id="resumeDropZone">
           <input type="file" name="resume_file" id="resumeFile" accept=".pdf,.doc,.docx" required>
-          <div class="file-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-          </div>
+          <div class="file-icon">📄</div>
           <div class="file-label">
             <strong>Click to upload</strong> or drag and drop<br>
             .pdf, .doc, .docx accepted
@@ -539,7 +537,6 @@
         <div class="field"><label>Threads URL</label><input type="url" name="threads_url" placeholder="https://threads.net/@..."></div>
         <div class="field"><label>Facebook URL</label><input type="url" name="facebook_url" placeholder="https://facebook.com/..."></div>
         <div class="field"><label>Twitch URL</label><input type="url" name="twitch_url" placeholder="https://twitch.tv/..."></div>
-        <div class="field"><label>Substack URL</label><input type="url" name="substack_url" placeholder="https://yourname.substack.com"></div>
         <div class="field"><label>OnlyFans URL</label><input type="url" name="onlyfans_url" placeholder="https://onlyfans.com/..."></div>
         <div class="field"><label>Other URL</label><input type="url" name="other_url" placeholder="https://..."></div>
       </div>
@@ -547,17 +544,17 @@
 
     <!-- SECTION 6: IMS Solution -->
     <div class="section">
-      <div class="section-title"><span>06</span> CreatorVersed Talent Solution</div>
+      <div class="section-title"><span>06</span> IMS Talent Solution</div>
       <div class="field">
-        <label>Which CreatorVersed Talent Solutions are you interested in? (Select all that apply)<span class="req">*</span></label>
-        <div class="check-group" style="flex-direction: column; gap: 10px; margin-top: 8px;">
-          <label class="check-item"><input type="checkbox" name="talent_solution" value="Permanent Placement"><label>Permanent Placement</label></label>
-          <label class="check-item"><input type="checkbox" name="talent_solution" value="Project / Contract Match"><label>Project / Contract Match</label></label>
-          <label class="check-item"><input type="checkbox" name="talent_solution" value="1:1 Mentorship Match"><label>1:1 Mentorship Match</label></label>
-          <label class="check-item"><input type="checkbox" name="talent_solution" value="Interview Prep + Advice"><label>Interview Prep + Advice</label></label>
-          <label class="check-item"><input type="checkbox" name="talent_solution" value="Resume Writing + Advice"><label>Resume Writing + Advice</label></label>
-          <label class="check-item"><input type="checkbox" name="talent_solution" value="None"><label>None</label></label>
-          <label class="check-item"><input type="checkbox" name="talent_solution" value="Other"><label>Other</label></label>
+        <label>Which IMS Talent Solution are you most interested in?<span class="req">*</span></label>
+        <div class="radio-group" style="flex-direction: column; gap: 10px;">
+          <label class="radio-item"><input type="radio" name="talent_solution" value="Permanent Placement" required><label>Permanent Placement</label></label>
+          <label class="radio-item"><input type="radio" name="talent_solution" value="Project / Contract Match"><label>Project / Contract Match</label></label>
+          <label class="radio-item"><input type="radio" name="talent_solution" value="1:1 Mentorship Match"><label>1:1 Mentorship Match</label></label>
+          <label class="radio-item"><input type="radio" name="talent_solution" value="Interview Prep + Advice"><label>Interview Prep + Advice</label></label>
+          <label class="radio-item"><input type="radio" name="talent_solution" value="Resume Writing + Advice"><label>Resume Writing + Advice</label></label>
+          <label class="radio-item"><input type="radio" name="talent_solution" value="None"><label>None</label></label>
+          <label class="radio-item"><input type="radio" name="talent_solution" value="Other"><label>Other</label></label>
         </div>
       </div>
     </div>
@@ -599,9 +596,7 @@
 
   <!-- Success screen -->
   <div class="success-screen" id="successScreen">
-    <div class="success-icon">
-      <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>
-    </div>
+    <div class="success-icon">🎉</div>
     <h2>Application Received!</h2>
     <p>Thank you for joining the IMS Talent Collective.<br>We'll be in touch when opportunities matching your profile arise.</p>
   </div>
@@ -696,25 +691,21 @@
       const textFields = ['first_name','last_name','current_title','current_company','phone','email',
         'linkedin_url','portfolio_url','media_kit_url','total_followers',
         'bluesky_url','youtube_url','tiktok_url','instagram_url','threads_url',
-        'facebook_url','twitch_url','substack_url','onlyfans_url','other_url'];
+        'facebook_url','twitch_url','onlyfans_url','other_url'];
       textFields.forEach(f => {
         const el = form.querySelector(`[name="${f}"]`);
         if (el && el.value) formData.append(f, el.value);
       });
 
       // Radio fields
-      ['career_level','spotlight','consent'].forEach(f => {
+      ['career_level','talent_solution','spotlight','consent'].forEach(f => {
         const el = form.querySelector(`input[name="${f}"]:checked`);
         if (el) formData.append(f, el.value);
       });
 
-      // Checkboxes — opportunities
+      // Checkboxes
       const opportunities = [...document.querySelectorAll('input[name="opportunities"]:checked')].map(c => c.value);
       formData.append('opportunities', JSON.stringify(opportunities));
-
-      // Checkboxes — talent solutions (multi-select)
-      const talentSolutions = [...document.querySelectorAll('input[name="talent_solution"]:checked')].map(c => c.value);
-      formData.append('talent_solution', JSON.stringify(talentSolutions));
 
       // Resume file
       formData.append('resume', resumeFile.files[0]);
@@ -725,7 +716,6 @@
       });
 
       const data = await res.json();
-
       if (res.ok && data.success) {
         document.getElementById('talentForm').style.display = 'none';
         document.getElementById('progressBar').parentElement.style.display = 'none';

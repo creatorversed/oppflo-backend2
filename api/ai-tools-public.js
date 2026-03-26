@@ -507,6 +507,7 @@ async function fetchToolDataContext(toolName, body, supabase) {
 }
 
 module.exports = async (req, res) => {
+  return res.status(503).json({ error: 'Service temporarily offline for maintenance' });
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;
