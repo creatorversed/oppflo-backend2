@@ -1,7 +1,7 @@
 /**
  * POST /api/ai-tools-public
  * Same 7 AI career tools as /api/ai-tools, but for anonymous use.
- * Auth: Authorization: Bearer <PUBLIC_TOOLS_KEY>. Rate limit: 200 requests per day per IP (in-memory).
+ * Auth: Authorization: Bearer <PUBLIC_TOOLS_KEY>. Rate limit: 50 requests per day per IP (in-memory).
  * COST OPTIMIZATION - data context capped at 1500 chars, max_tokens 1000, query limit 15 rows
  *
  * Body: { tool: string, ...toolParams }
@@ -14,7 +14,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { TONE_INSTRUCTIONS, DB_DATA_CONTEXT_PREFIX } = require('../lib/ai-tools-prompts');
 
 const MODEL = 'claude-sonnet-4-20250514';
-const PUBLIC_RATE_LIMIT_PER_DAY = 200;
+const PUBLIC_RATE_LIMIT_PER_DAY = 50;
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_TOKENS_CTX = 1500;
 const MAX_CLAUDE_TOKENS = 1000;
@@ -507,7 +507,6 @@ async function fetchToolDataContext(toolName, body, supabase) {
 }
 
 module.exports = async (req, res) => {
-  return res.status(503).json({ error: 'Service temporarily offline for maintenance' });
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;
@@ -525,17 +524,15 @@ module.exports = async (req, res) => {
   }
 
   const ip = getClientIp(req);
-  // TESTING ONLY - RE-ENABLE BEFORE LAUNCH.
-  // Rate limiting is intentionally bypassed so all requests are allowed.
-  // const { allowed, remaining } = checkRateLimit(ip);
-  // if (!allowed) {
-  //   res.setHeader('Content-Type', 'application/json');
-  //   res.status(429).json({
-  //     error: 'Rate limit exceeded',
-  //     detail: `${PUBLIC_RATE_LIMIT_PER_DAY} requests per day per IP for anonymous use.`,
-  //   });
-  //   return;
-  // }
+  const { allowed, remaining } = checkRateLimit(ip);
+  if (!allowed) {
+    res.setHeader('Content-Type', 'application/json');
+    res.status(429).json({
+      error: 'Rate limit exceeded',
+      detail: `${PUBLIC_RATE_LIMIT_PER_DAY} requests per day per IP for anonymous use.`,
+    });
+    return;
+  }
 
   const body = parseBody(req);
   const toolName = (body.tool || '').trim().toLowerCase();
@@ -600,9 +597,7 @@ module.exports = async (req, res) => {
     const outputTokens = message.usage?.output_tokens ?? 0;
     const totalTokens = inputTokens + outputTokens;
 
-    // TESTING ONLY - RE-ENABLE BEFORE LAUNCH.
-    // Keep request tracking disabled while rate limiting is bypassed.
-    // recordRequest(ip);
+    recordRequest(ip);
 
     res.setHeader('Content-Type', 'application/json');
     res.status(200).json({
