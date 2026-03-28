@@ -16,9 +16,8 @@ const { TONE_INSTRUCTIONS, DB_DATA_CONTEXT_PREFIX } = require('../lib/ai-tools-p
 
 const MODEL = 'claude-sonnet-4-20250514';
 const LIMITS = { free: 5, pro: 50, mogul: Infinity };
-const MAX_TOKENS_LONG = 1500;  // cover-letter, interview-prep
-const MAX_TOKENS_SHORT = 800;
-const MAX_TOKENS_CTX = 1500;   // context-only tools
+const MAX_TOKENS_CTX = 1000; // default max_tokens for all tools except long-form list below
+const MAX_TOKENS_LONG_FORM = 1500; // blog-outline, podcast-planner, sponsorship-proposal, etc.
 
 function buildUserContext(b) {
   const entries = Object.entries(b)
@@ -29,7 +28,7 @@ function buildUserContext(b) {
 
 const TOOL_CONFIG = {
   'cover-letter': {
-    maxTokens: MAX_TOKENS_LONG,
+    maxTokens: MAX_TOKENS_CTX,
     required: ['job_title', 'company', 'job_description', 'user_background'],
     system: `You are an expert career coach for the creator economy. Write personalized cover letters that:
 - Use creator economy language (influencer marketing, brand partnerships, content strategy, audience growth, engagement metrics)
@@ -42,7 +41,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Job: ${b.job_title} at ${b.company}\n\nJob description:\n${b.job_description}\n\nMy background:\n${b.user_background}\n\nWrite a personalized cover letter.`,
   },
   'resume-optimize': {
-    maxTokens: MAX_TOKENS_SHORT,
+    maxTokens: MAX_TOKENS_CTX,
     required: ['resume_text', 'job_description'],
     system: `You are an ATS (Applicant Tracking System) and career expert. Analyze resumes against job descriptions.
 Return a JSON object with: "score" (0-100 number), "suggestions" (array of specific improvement strings), "keywords_to_add" (array of keywords from the job description to incorporate).
@@ -52,7 +51,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Resume:\n${b.resume_text}\n\nJob description:\n${b.job_description}\n\nAnalyze and return the JSON.`,
   },
   'interview-prep': {
-    maxTokens: MAX_TOKENS_LONG,
+    maxTokens: MAX_TOKENS_CTX,
     required: ['job_title', 'company', 'job_description'],
     system: `You are an interview coach for creator economy roles. Generate 10 likely interview questions with suggested answers.
 Tailor questions to creator economy: influencer partnerships, content strategy, metrics, brand deals, audience growth.
@@ -62,7 +61,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Role: ${b.job_title} at ${b.company}\n\nJob description:\n${b.job_description}\n\nGenerate 10 interview questions with suggested answers.`,
   },
   'salary-negotiate': {
-    maxTokens: MAX_TOKENS_SHORT,
+    maxTokens: MAX_TOKENS_CTX,
     required: ['job_title', 'company', 'location', 'current_offer'],
     system: `You are a compensation expert. Provide salary negotiation talking points. Be practical: anchors, ranges, and phrases to use in conversation.
 
@@ -74,7 +73,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Role: ${b.job_title} at ${b.company}, location: ${b.location}\nCurrent offer: ${b.current_offer}\n\nProvide salary negotiation talking points.`,
   },
   'linkedin-outreach': {
-    maxTokens: MAX_TOKENS_SHORT,
+    maxTokens: MAX_TOKENS_CTX,
     required: ['recipient_name', 'recipient_role', 'company', 'purpose'],
     system: `Generate outreach messages tailored to the specific platform the user selected. Apply 2026 best practices for each platform:
 
@@ -91,15 +90,17 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Recipient: ${b.recipient_name} (${b.recipient_role}) at ${b.company}\nPurpose: ${b.purpose}\nPlatform: ${(b.platform || 'LinkedIn').trim()}\n\nGenerate an outreach message for this platform.`,
   },
   'follow-up-email': {
-    maxTokens: MAX_TOKENS_SHORT,
+    maxTokens: MAX_TOKENS_CTX,
     required: ['company', 'role', 'interview_date', 'interviewer_name'],
     system: `You write professional post-interview follow-up emails. Be polite, reference the interview date and role, and reiterate interest.
+
+Keep follow-up emails concise — 2-3 short paragraphs maximum for same-day thank you and 1-week check-in timing. Only the 3+ week and after-rejection timing should be longer. The user has already had the interview — they do not need to re-sell themselves. Focus on: thanking them, referencing one specific thing discussed, reinforcing one key selling point, and expressing continued interest. That is it.
 
 ${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Company: ${b.company}\nRole: ${b.role}\nInterview date: ${b.interview_date}\nInterviewer: ${b.interviewer_name}\n\nWrite a follow-up email.`,
   },
   'thank-you-note': {
-    maxTokens: MAX_TOKENS_SHORT,
+    maxTokens: MAX_TOKENS_CTX,
     required: ['company', 'role', 'interviewer_name', 'discussion_points'],
     system: `You write thank-you notes that reference specific conversation points from the interview. Personal and professional.
 
@@ -125,7 +126,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'blog-outline': {
-    maxTokens: MAX_TOKENS_CTX,
+    maxTokens: MAX_TOKENS_LONG_FORM,
     required: [],
     system: `You are an SEO content strategist. Generate comprehensive blog post outlines with SEO-optimized title options, meta description, H2/H3 heading structure, bullet points per section, word count recommendations, intro hook, and CTA for conclusion. Apply 2026 SEO best practices.
 
@@ -133,7 +134,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'podcast-planner': {
-    maxTokens: MAX_TOKENS_CTX,
+    maxTokens: MAX_TOKENS_LONG_FORM,
     required: [],
     system: `You are a podcast production expert. Generate complete episode plans including: 3 episode title options optimized for podcast search, compelling episode description for show notes, complete episode outline with timestamps and segments, 10 specific interview questions or talking points, a teaser quote for social media, and suggested social media clip moments with timestamps. Format everything with clear sections.
 
@@ -169,9 +170,11 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'contract-template': {
-    maxTokens: MAX_TOKENS_CTX,
+    maxTokens: MAX_TOKENS_LONG_FORM,
     required: [],
     system: `You are a creator economy business consultant with expertise in creator contracts. Generate complete contract templates with standard legal sections: parties, scope of work, deliverables, compensation, content rights, exclusivity, revisions, confidentiality, termination, FTC compliance, liability, dispute resolution, and signature blocks. Always include a disclaimer that this is a template and not legal advice.
+
+Always include these additional standard legal sections in every contract template: (a) Indemnification/Hold Harmless clause protecting both parties, (b) Force Majeure clause covering unforeseeable circumstances, (c) Governing Law and Jurisdiction specifying which state laws apply, (d) Morality/Reputation clause allowing either party to terminate if the other causes reputational harm, (e) Integration/Entire Agreement clause stating this document supersedes all prior agreements. These are standard in 2026 creator contracts and their absence is a red flag.
 
 ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
@@ -209,9 +212,11 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'sponsorship-proposal': {
-    maxTokens: MAX_TOKENS_CTX,
+    maxTokens: MAX_TOKENS_LONG_FORM,
     required: [],
     system: `You are a creator economy monetization expert specializing in brand partnerships. Generate complete, professional sponsorship proposals with executive summary, audience insights, partnership structure, pricing, ROI projections, and next steps. Make proposals specific and data-informed, never generic. Apply 2026 influencer marketing best practices.
+
+Include a brief Competitive Analysis section explaining why the brand should partner with this creator versus alternatives. Also include more detailed case study information — do not just mention past partnerships by name, break down the specific results with numbers. If the user provides past partnership data, expand on it with context about what worked and why.
 
 ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
@@ -225,7 +230,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'meeting-notes': {
-    maxTokens: MAX_TOKENS_CTX,
+    maxTokens: MAX_TOKENS_LONG_FORM,
     required: [],
     system: `You are a professional executive assistant expert at organizing chaotic meeting notes into clear, actionable documents. Transform raw brain dumps into organized summaries with key discussion points, decisions, action items with owners and deadlines, and follow-up email drafts. Be thorough but concise.
 
@@ -233,7 +238,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'scope-of-work': {
-    maxTokens: MAX_TOKENS_CTX,
+    maxTokens: MAX_TOKENS_LONG_FORM,
     required: [],
     system: `You are a creator economy business consultant specializing in professional service agreements. Generate complete scope of work documents with project overview, deliverables, timeline, compensation, payment terms, revision policy, communication plan, exclusions, and termination clause. Always include a disclaimer that this is a template and not legal advice. Make it specific to the creator/content industry.
 
@@ -241,7 +246,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'project-brief': {
-    maxTokens: MAX_TOKENS_CTX,
+    maxTokens: MAX_TOKENS_LONG_FORM,
     required: [],
     system: `You are a strategic project manager and creative director in the creator economy. Generate complete project briefs that are clear, actionable, and professional. Include executive summary, objectives with KPIs, audience profile, deliverables, timeline, budget recommendations, success metrics, risks, and next steps. Make it specific to the project described, never generic template language.
 
@@ -257,7 +262,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'culture-decoder': {
-    maxTokens: MAX_TOKENS_CTX,
+    maxTokens: MAX_TOKENS_LONG_FORM,
     required: [],
     system: `You are a workplace culture analyst specializing in the creator economy and digital media industries. Decode company culture from job descriptions, about pages, and review text. Translate corporate speak into plain English. Rate culture dimensions, identify red and green flags with specific evidence from the text, classify the culture type, and generate interview questions that will reveal the truth about the work environment. Be candid and practical.
 
@@ -273,7 +278,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'linkedin-analyzer': {
-    maxTokens: MAX_TOKENS_CTX,
+    maxTokens: MAX_TOKENS_LONG_FORM,
     required: [],
     system: `You are a LinkedIn optimization expert specializing in creator economy professionals. Analyze LinkedIn profiles and score them 0-100 based on 2026 best practices. Provide specific, actionable improvements for headlines, about sections, and experience entries. Generate rewritten alternatives that are compelling and keyword-optimized. Focus on what makes profiles get found by recruiters and attract opportunities in the creator economy. Reference data from 22,000+ creator economy job posts to identify relevant keywords and trends.
 
@@ -281,7 +286,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'career-quiz': {
-    maxTokens: 2000,
+    maxTokens: MAX_TOKENS_CTX,
     required: [],
     system: `You are a creator economy career advisor with access to data from 22,000+ creator economy job posts collected by CreatorVersed/Influencer Marketing Society since 2016. Based on the user quiz answers, recommend their top 3 career paths using REAL job titles that actually exist in the creator economy. Provide salary ranges based on your job data, skills gap analysis, career progression paths, current demand levels, and personalized action plans. Be specific — use actual role titles like Social Media Manager, Creator Partnerships Director, Influencer Marketing Coordinator, Content Strategist, etc. that appear in real job postings. Include match percentages based on their skills and preferences.
 
@@ -289,7 +294,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'content-ideas': {
-    maxTokens: 2000,
+    maxTokens: MAX_TOKENS_CTX,
     required: [],
     system: `You are a content strategist specializing in creator economy professionals. Generate a complete 30-day content calendar with specific, original ideas tailored to the creator niche and platform. Mix content types strategically throughout the month. Include trending topics and seasonal moments. Every idea should be specific enough to execute immediately, not vague concepts. Organize by week with clear content types and which content pillar each idea serves.
 
@@ -297,7 +302,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'content-repurpose': {
-    maxTokens: MAX_TOKENS_CTX,
+    maxTokens: MAX_TOKENS_LONG_FORM,
     required: [],
     system: `You are a content repurposing strategist who helps creators maximize every piece of content across platforms. Generate platform-specific repurposing plans that account for each platform unique format, audience expectations, and algorithm preferences in 2026. Include specific drafts or outlines for each platform, not just vague suggestions. Organize by effort level so creators can start with quick wins. Include a posting timeline for maximum cross-platform reach.
 
@@ -321,7 +326,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'brand-audit': {
-    maxTokens: 2000,
+    maxTokens: MAX_TOKENS_CTX,
     required: [],
     system: `You are a personal branding strategist with deep expertise in the creator economy. Conduct thorough brand audits analyzing cross-platform consistency, messaging clarity, differentiation, and strategic positioning. Score brands honestly — if something is weak, say so directly with specific fixes. Generate rewritten bios optimized for each platform and 30-day improvement plans with weekly priorities. Your audit should feel like a $500 consultation delivered in minutes. Reference what works in the creator economy in 2026 specifically.
 

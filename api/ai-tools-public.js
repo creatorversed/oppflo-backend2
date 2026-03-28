@@ -2,7 +2,7 @@
  * POST /api/ai-tools-public
  * Same 7 AI career tools as /api/ai-tools, but for anonymous use.
  * Auth: Authorization: Bearer <PUBLIC_TOOLS_KEY>. Rate limit: 50 requests per day per IP (in-memory).
- * COST OPTIMIZATION - data context capped at 1500 chars, max_tokens 1000, query limit 15 rows
+ * COST OPTIMIZATION - data context capped at 1500 chars, default max_tokens 1000 (1500 for long-form tools), query limit 15 rows
  *
  * Body: { tool: string, ...toolParams }
  * Tools: cover-letter, resume-optimize, interview-prep, salary-negotiate,
@@ -17,7 +17,20 @@ const MODEL = 'claude-sonnet-4-20250514';
 const PUBLIC_RATE_LIMIT_PER_DAY = 50;
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_TOKENS_CTX = 1500;
-const MAX_CLAUDE_TOKENS = 1000;
+const PUBLIC_DEFAULT_MAX_TOKENS = 1000;
+const PUBLIC_LONG_FORM_MAX_TOKENS = 1500;
+const LONG_FORM_TOOLS = new Set([
+  'blog-outline',
+  'podcast-planner',
+  'sponsorship-proposal',
+  'contract-template',
+  'meeting-notes',
+  'scope-of-work',
+  'culture-decoder',
+  'project-brief',
+  'content-repurpose',
+  'linkedin-analyzer',
+]);
 const JOB_QUERY_LIMIT = 15;
 const DATA_CONTEXT_CHAR_LIMIT = 1500;
 const DATA_CONTEXT_OVERFLOW_SUFFIX = '...and more matching roles in our database.';
@@ -27,6 +40,11 @@ function buildUserContext(b) {
     .filter(([k]) => k !== 'tool')
     .map(([k, v]) => `${k}: ${typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v ?? '')}`);
   return entries.length ? `User context:\n${entries.join('\n')}\n\nGenerate the requested content.` : 'Generate the requested content based on the task.';
+}
+
+function getPublicOutputMaxTokens(toolName) {
+  if (LONG_FORM_TOOLS.has(toolName)) return PUBLIC_LONG_FORM_MAX_TOKENS;
+  return PUBLIC_DEFAULT_MAX_TOKENS;
 }
 
 const TOOL_CONFIG = {
@@ -96,6 +114,8 @@ ${TONE_INSTRUCTIONS}`,
     maxTokens: 800,
     required: ['company', 'role', 'interview_date', 'interviewer_name'],
     system: `You write professional post-interview follow-up emails. Be polite, reference the interview date and role, and reiterate interest.
+
+Keep follow-up emails concise — 2-3 short paragraphs maximum for same-day thank you and 1-week check-in timing. Only the 3+ week and after-rejection timing should be longer. The user has already had the interview — they do not need to re-sell themselves. Focus on: thanking them, referencing one specific thing discussed, reinforcing one key selling point, and expressing continued interest. That is it.
 
 ${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Company: ${b.company}\nRole: ${b.role}\nInterview date: ${b.interview_date}\nInterviewer: ${b.interviewer_name}\n\nWrite a follow-up email.`,
@@ -175,6 +195,8 @@ ${TONE_INSTRUCTIONS}`,
     required: [],
     system: `You are a creator economy business consultant with expertise in creator contracts. Generate complete contract templates with standard legal sections: parties, scope of work, deliverables, compensation, content rights, exclusivity, revisions, confidentiality, termination, FTC compliance, liability, dispute resolution, and signature blocks. Always include a disclaimer that this is a template and not legal advice.
 
+Always include these additional standard legal sections in every contract template: (a) Indemnification/Hold Harmless clause protecting both parties, (b) Force Majeure clause covering unforeseeable circumstances, (c) Governing Law and Jurisdiction specifying which state laws apply, (d) Morality/Reputation clause allowing either party to terminate if the other causes reputational harm, (e) Integration/Entire Agreement clause stating this document supersedes all prior agreements. These are standard in 2026 creator contracts and their absence is a red flag.
+
 ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
@@ -214,6 +236,8 @@ ${TONE_INSTRUCTIONS}`,
     maxTokens: MAX_TOKENS_CTX,
     required: [],
     system: `You are a creator economy monetization expert specializing in brand partnerships. Generate complete, professional sponsorship proposals with executive summary, audience insights, partnership structure, pricing, ROI projections, and next steps. Make proposals specific and data-informed, never generic. Apply 2026 influencer marketing best practices.
+
+Include a brief Competitive Analysis section explaining why the brand should partner with this creator versus alternatives. Also include more detailed case study information — do not just mention past partnerships by name, break down the specific results with numbers. If the user provides past partnership data, expand on it with context about what worked and why.
 
 ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
@@ -586,7 +610,7 @@ module.exports = async (req, res) => {
   try {
     const message = await anthropic.messages.create({
       model: MODEL,
-      max_tokens: MAX_CLAUDE_TOKENS,
+      max_tokens: getPublicOutputMaxTokens(toolName),
       system: config.system,
       messages: [{ role: 'user', content: userMessage }],
     });
