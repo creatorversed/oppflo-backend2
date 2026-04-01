@@ -21,6 +21,7 @@ const PUBLIC_DEFAULT_MAX_TOKENS = 1000;
 const PUBLIC_LONG_FORM_MAX_TOKENS = 1500;
 const LONG_FORM_TOOLS = new Set([
   'blog-outline',
+  'interview-prep',
   'podcast-planner',
   'sponsorship-proposal',
   'contract-template',
@@ -126,7 +127,7 @@ ${TONE_INSTRUCTIONS}`,
     system: `You write thank-you notes that reference specific conversation points from the interview. Personal and professional.
 
 ${TONE_INSTRUCTIONS}`,
-    buildUser: (b) => `Company: ${b.company}\nRole: ${b.role}\nInterviewer: ${b.interviewer_name}\nDiscussion points to reference: ${b.discussion_points}\n\nWrite a thank-you note.`,
+    buildUser: (b) => `Company: ${b.company}\nRole: ${b.role}\nInterviewer: ${b.interviewer_name}\nFormat (write exactly for this channel): ${b.format || 'Email'}\nTone: ${b.tone || 'Professional and Warm'}\nDiscussion points to reference: ${b.discussion_points}\n\nWrite a thank-you note that matches the format and tone above.`,
   },
   'caption-writer': {
     maxTokens: MAX_TOKENS_CTX,

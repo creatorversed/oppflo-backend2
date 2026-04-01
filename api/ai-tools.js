@@ -17,7 +17,7 @@ const { TONE_INSTRUCTIONS, DB_DATA_CONTEXT_PREFIX } = require('../lib/ai-tools-p
 const MODEL = 'claude-sonnet-4-20250514';
 const LIMITS = { free: 5, pro: 50, mogul: Infinity };
 const MAX_TOKENS_CTX = 1000; // default max_tokens for all tools except long-form list below
-const MAX_TOKENS_LONG_FORM = 1500; // blog-outline, podcast-planner, sponsorship-proposal, etc.
+const MAX_TOKENS_LONG_FORM = 1500; // interview-prep, blog-outline, podcast-planner, sponsorship-proposal, etc.
 
 function buildUserContext(b) {
   const entries = Object.entries(b)
@@ -51,7 +51,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Resume:\n${b.resume_text}\n\nJob description:\n${b.job_description}\n\nAnalyze and return the JSON.`,
   },
   'interview-prep': {
-    maxTokens: MAX_TOKENS_CTX,
+    maxTokens: MAX_TOKENS_LONG_FORM,
     required: ['job_title', 'company', 'job_description'],
     system: `You are an interview coach for creator economy roles. Generate 10 likely interview questions with suggested answers.
 Tailor questions to creator economy: influencer partnerships, content strategy, metrics, brand deals, audience growth.
@@ -105,7 +105,7 @@ ${TONE_INSTRUCTIONS}`,
     system: `You write thank-you notes that reference specific conversation points from the interview. Personal and professional.
 
 ${TONE_INSTRUCTIONS}`,
-    buildUser: (b) => `Company: ${b.company}\nRole: ${b.role}\nInterviewer: ${b.interviewer_name}\nDiscussion points to reference: ${b.discussion_points}\n\nWrite a thank-you note.`,
+    buildUser: (b) => `Company: ${b.company}\nRole: ${b.role}\nInterviewer: ${b.interviewer_name}\nFormat (write exactly for this channel): ${b.format || 'Email'}\nTone: ${b.tone || 'Professional and Warm'}\nDiscussion points to reference: ${b.discussion_points}\n\nWrite a thank-you note that matches the format and tone above.`,
   },
   'caption-writer': {
     maxTokens: MAX_TOKENS_CTX,
