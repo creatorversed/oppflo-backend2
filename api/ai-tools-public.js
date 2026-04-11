@@ -258,7 +258,7 @@ Write detailed audience demographics, engagement rates, psychographic profile, a
 Write a detailed breakdown of all deliverables selected, organized by platform, with timing and cadence.
 
 ---PRICING BREAKDOWN---
-Write investment tiers or flat rate based on the rate range, with per-deliverable pricing and package inclusions.
+Write investment tiers or flat rate based on the rate range, with per-deliverable pricing and package inclusions. If the user enters open to suggestions, open, or flexible for their rate or budget range, generate specific recommended pricing based on their audience size, deliverables selected, and campaign timeline. Use 2026 creator economy market rates as your reference. Present 3 tiers: a Starter package, a Growth package, and a Premium package with specific dollar amounts for each. Explain the rationale for each price point based on the deliverables and audience size provided.
 
 ---DELIVERABLES TIMELINE---
 Write a month-by-month content calendar showing when each deliverable executes.
