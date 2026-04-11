@@ -19,6 +19,7 @@ const LIMITS = { free: 5, pro: 50, mogul: Infinity };
 const MAX_TOKENS_CTX = 1000; // default max_tokens for all tools except long-form list below
 const MAX_TOKENS_LONG_FORM = 1500; // interview-prep, blog-outline, podcast-planner, etc.
 const MAX_TOKENS_SPONSORSHIP_PROPOSAL = 2000; // full multi-section sponsorship-proposal output
+const MAX_TOKENS_CONTENT_REPURPOSE = 2000; // quality-focused repurposing plans
 
 function buildUserContext(b) {
   const entries = Object.entries(b)
@@ -329,9 +330,13 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'content-repurpose': {
-    maxTokens: MAX_TOKENS_LONG_FORM,
+    maxTokens: MAX_TOKENS_CONTENT_REPURPOSE,
     required: [],
-    system: `You are a content repurposing strategist who helps creators maximize every piece of content across platforms. Generate platform-specific repurposing plans that account for each platform unique format, audience expectations, and algorithm preferences in 2026. Include specific drafts or outlines for each platform, not just vague suggestions. Organize by effort level so creators can start with quick wins. Include a posting timeline for maximum cross-platform reach.
+    system: `You are a content repurposing strategist who helps creators maximize every piece of content across platforms. Generate platform-specific repurposing plans that account for each platform unique format, audience expectations, and algorithm preferences in 2026. Include specific drafts or outlines where you recommend a platform — not vague suggestions. Organize by effort level so creators can start with quick wins.
+
+Prioritize content quality over quantity: generate 3-4 high-quality repurposing ideas per effort-level section, each with full detail (angle, format, hook, and what to publish). Do not try to cover every platform with thin content — depth beats breadth. Apply quality over quantity for each platform suggestion you include.
+
+For posting schedule or timing: give a brief 3-day example only (e.g. Day 1–3) to illustrate cadence — not a full week breakdown.
 
 ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,

@@ -20,6 +20,7 @@ const MAX_TOKENS_CTX = 1500;
 const PUBLIC_DEFAULT_MAX_TOKENS = 1000;
 const PUBLIC_LONG_FORM_MAX_TOKENS = 1500;
 const PUBLIC_SPONSORSHIP_PROPOSAL_MAX_TOKENS = 2000;
+const PUBLIC_CONTENT_REPURPOSE_MAX_TOKENS = 2000;
 const LONG_FORM_TOOLS = new Set([
   'blog-outline',
   'interview-prep',
@@ -31,7 +32,6 @@ const LONG_FORM_TOOLS = new Set([
   'culture-decoder',
   'company-culture-decoder',
   'project-brief',
-  'content-repurpose',
   'linkedin-analyzer',
 ]);
 const JOB_QUERY_LIMIT = 15;
@@ -47,6 +47,7 @@ function buildUserContext(b) {
 
 function getPublicOutputMaxTokens(toolName) {
   if (toolName === 'sponsorship-proposal') return PUBLIC_SPONSORSHIP_PROPOSAL_MAX_TOKENS;
+  if (toolName === 'content-repurpose') return PUBLIC_CONTENT_REPURPOSE_MAX_TOKENS;
   if (LONG_FORM_TOOLS.has(toolName)) return PUBLIC_LONG_FORM_MAX_TOKENS;
   return PUBLIC_DEFAULT_MAX_TOKENS;
 }
@@ -353,9 +354,13 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'content-repurpose': {
-    maxTokens: MAX_TOKENS_CTX,
+    maxTokens: PUBLIC_CONTENT_REPURPOSE_MAX_TOKENS,
     required: [],
-    system: `You are a content repurposing strategist who helps creators maximize every piece of content across platforms. Generate platform-specific repurposing plans that account for each platform unique format, audience expectations, and algorithm preferences in 2026. Include specific drafts or outlines for each platform, not just vague suggestions. Organize by effort level so creators can start with quick wins. Include a posting timeline for maximum cross-platform reach.
+    system: `You are a content repurposing strategist who helps creators maximize every piece of content across platforms. Generate platform-specific repurposing plans that account for each platform unique format, audience expectations, and algorithm preferences in 2026. Include specific drafts or outlines where you recommend a platform — not vague suggestions. Organize by effort level so creators can start with quick wins.
+
+Prioritize content quality over quantity: generate 3-4 high-quality repurposing ideas per effort-level section, each with full detail (angle, format, hook, and what to publish). Do not try to cover every platform with thin content — depth beats breadth. Apply quality over quantity for each platform suggestion you include.
+
+For posting schedule or timing: give a brief 3-day example only (e.g. Day 1–3) to illustrate cadence — not a full week breakdown.
 
 ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
