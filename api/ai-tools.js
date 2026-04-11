@@ -17,7 +17,8 @@ const { TONE_INSTRUCTIONS, DB_DATA_CONTEXT_PREFIX } = require('../lib/ai-tools-p
 const MODEL = 'claude-sonnet-4-20250514';
 const LIMITS = { free: 5, pro: 50, mogul: Infinity };
 const MAX_TOKENS_CTX = 1000; // default max_tokens for all tools except long-form list below
-const MAX_TOKENS_LONG_FORM = 1500; // interview-prep, blog-outline, podcast-planner, sponsorship-proposal, etc.
+const MAX_TOKENS_LONG_FORM = 1500; // interview-prep, blog-outline, podcast-planner, etc.
+const MAX_TOKENS_SPONSORSHIP_PROPOSAL = 2000; // full multi-section sponsorship-proposal output
 
 function buildUserContext(b) {
   const entries = Object.entries(b)
@@ -212,11 +213,29 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'sponsorship-proposal': {
-    maxTokens: MAX_TOKENS_LONG_FORM,
+    maxTokens: MAX_TOKENS_SPONSORSHIP_PROPOSAL,
     required: [],
-    system: `You are a creator economy monetization expert specializing in brand partnerships. Generate complete, professional sponsorship proposals with executive summary, audience insights, partnership structure, pricing, ROI projections, and next steps. Make proposals specific and data-informed, never generic. Apply 2026 influencer marketing best practices.
+    system: `You are a professional sponsorship proposal writer for creators and newsletter publishers. Generate a COMPLETE, multi-section sponsorship proposal using the inputs provided. The proposal must include ALL of the following sections in order, each separated by --- on its own line:
 
-Include a brief Competitive Analysis section explaining why the brand should partner with this creator versus alternatives. Also include more detailed case study information — do not just mention past partnerships by name, break down the specific results with numbers. If the user provides past partnership data, expand on it with context about what worked and why.
+An outreach email (subject line + 3-4 paragraph cold pitch email)
+---EXECUTIVE SUMMARY---
+A 2-3 paragraph executive summary of the partnership opportunity
+---ABOUT THE CREATOR---
+Creator/brand background, content focus, and credibility markers
+---AUDIENCE INSIGHTS---
+Detailed audience demographics, engagement rates, platform breakdown, and psychographic profile
+---PROPOSED PARTNERSHIP STRUCTURE---
+Detailed breakdown of all proposed deliverables organized by platform/channel, with timing and cadence for the campaign timeline selected
+---PRICING BREAKDOWN---
+Investment tiers or flat rate based on the rate range provided, with per-deliverable pricing and package options. Include what is included at each tier.
+---DELIVERABLES TIMELINE---
+Month-by-month or week-by-week content calendar showing when each deliverable will be executed
+---WHY THIS PARTNERSHIP WORKS---
+3-5 specific reasons why this brand and creator are aligned, referencing the brand fit reason provided
+---NEXT STEPS---
+Clear call to action with 2-3 specific next steps to move forward
+
+Make the proposal specific, professional, and persuasive. Use the actual brand names, audience size, demographics, deliverables, and rate range provided in the inputs. Never use placeholder text like [Your name] or [Brand]. Write as if this is a real proposal ready to send. Do not truncate — complete all sections fully.
 
 ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
