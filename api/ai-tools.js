@@ -334,6 +334,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
 };
+TOOL_CONFIG['company-culture-decoder'] = TOOL_CONFIG['culture-decoder'];
 
 function parseBody(req) {
   if (typeof req.body === 'object' && req.body !== null) return req.body;
@@ -435,7 +436,7 @@ async function fetchToolDataContext(toolName, body, supabase) {
       return `${DB_DATA_CONTEXT_PREFIX.jobAnalyzer}${stringifyRows(data)}\n\n`;
     }
 
-    if (toolName === 'culture-decoder') {
+    if (toolName === 'culture-decoder' || toolName === 'company-culture-decoder') {
       const keyword = companyName;
       if (!keyword) return '';
       const { data, error } = await supabase

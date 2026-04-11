@@ -28,6 +28,7 @@ const LONG_FORM_TOOLS = new Set([
   'meeting-notes',
   'scope-of-work',
   'culture-decoder',
+  'company-culture-decoder',
   'project-brief',
   'content-repurpose',
   'linkedin-analyzer',
@@ -284,7 +285,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'culture-decoder': {
-    maxTokens: MAX_TOKENS_CTX,
+    maxTokens: PUBLIC_LONG_FORM_MAX_TOKENS,
     required: [],
     system: `You are a workplace culture analyst specializing in the creator economy and digital media industries. Decode company culture from job descriptions, about pages, and review text. Translate corporate speak into plain English. Rate culture dimensions, identify red and green flags with specific evidence from the text, classify the culture type, and generate interview questions that will reveal the truth about the work environment. Be candid and practical.
 
@@ -356,6 +357,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
 };
+TOOL_CONFIG['company-culture-decoder'] = TOOL_CONFIG['culture-decoder'];
 
 // In-memory IP rate limit: { ip: [timestamp, ...] }. Pruned when checked.
 const rate_limits = Object.create(null);
@@ -479,7 +481,7 @@ async function fetchToolDataContext(toolName, body, supabase) {
       return buildCappedDataContext(DB_DATA_CONTEXT_PREFIX.jobAnalyzer, contextRows);
     }
 
-    if (toolName === 'culture-decoder') {
+    if (toolName === 'culture-decoder' || toolName === 'company-culture-decoder') {
       const keyword = companyName;
       if (!keyword) return '';
       const { data, error } = await supabase
