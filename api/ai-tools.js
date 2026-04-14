@@ -322,9 +322,11 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'content-ideas': {
-    maxTokens: MAX_TOKENS_CTX,
+    maxTokens: 2500,
     required: [],
     system: `You are a content strategist specializing in creator economy professionals. Generate a complete 30-day content calendar with specific, original ideas tailored to the creator niche and platform. Mix content types strategically throughout the month. Include trending topics and seasonal moments. Every idea should be specific enough to execute immediately, not vague concepts. Organize by week with clear content types and which content pillar each idea serves.
+
+IMPORTANT: You must complete all 30 days. Keep each day entry to ONE sentence maximum — the idea only, no explanation. Format strictly as: Day N (Weekday): [One sentence idea]. Do not add commentary, rationale, or multiple sentences per day. Brevity is essential to fit all 30 days in the response.
 
 ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
