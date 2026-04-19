@@ -38,6 +38,24 @@ const JOB_QUERY_LIMIT = 15;
 const DATA_CONTEXT_CHAR_LIMIT = 1500;
 const DATA_CONTEXT_OVERFLOW_SUFFIX = '...and more matching roles in our database.';
 
+/** Prepended to system prompts when IMS Supabase rows are attached (7 core career tools). */
+const IMS_ARCHIVE_SYSTEM_INTRO =
+  'You have access to real data from the IMS archive of 19,000+ creator economy jobs. Here is relevant data for this request:';
+
+const IMS_COVER_LETTER_LIMIT = 5;
+const IMS_RESUME_OPTIMIZE_LIMIT = 10;
+const IMS_INTERVIEW_PREP_LIMIT = 5;
+const IMS_SALARY_AGGREGATE_LIMIT = 500;
+const IMS_COMPANY_TOOLS_LIMIT = 3;
+
+function sanitizeIlikeTerm(raw) {
+  return String(raw || '')
+    .trim()
+    .replace(/[%_\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function buildUserContext(b) {
   const entries = Object.entries(b)
     .filter(([k]) => k !== 'tool')
@@ -470,28 +488,122 @@ function buildCappedDataContext(prefix, rows) {
   return `${raw.slice(0, keep)}${DATA_CONTEXT_OVERFLOW_SUFFIX}`;
 }
 
+function capImsSystemBlock(text) {
+  if (!text) return '';
+  if (text.length <= DATA_CONTEXT_CHAR_LIMIT) return text;
+  const keep = Math.max(0, DATA_CONTEXT_CHAR_LIMIT - DATA_CONTEXT_OVERFLOW_SUFFIX.length);
+  return `${text.slice(0, keep)}${DATA_CONTEXT_OVERFLOW_SUFFIX}`;
+}
+
+/**
+ * Real job rows / aggregates for the 7 core tools — appended to the system prompt (not user message).
+ */
+async function fetchImsArchiveSystemContext(toolName, body, supabase) {
+  if (!supabase) return '';
+
+  try {
+    if (toolName === 'cover-letter') {
+      const term = sanitizeIlikeTerm(body.job_title);
+      if (!term) return '';
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('title,company,description')
+        .ilike('title', `%${term}%`)
+        .limit(IMS_COVER_LETTER_LIMIT);
+      if (error || !data?.length) return '';
+      return capImsSystemBlock(stringifyRows(data));
+    }
+
+    if (toolName === 'resume-optimize') {
+      const term = sanitizeIlikeTerm(
+        firstNonEmpty(body.job_title, body.role, body.target_role, body.title) || 'creator'
+      );
+      if (!term) return '';
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('title,company,description')
+        .not('description', 'is', null)
+        .ilike('title', `%${term}%`)
+        .limit(IMS_RESUME_OPTIMIZE_LIMIT);
+      if (error || !data?.length) return '';
+      return capImsSystemBlock(stringifyRows(data));
+    }
+
+    if (toolName === 'interview-prep') {
+      const term = sanitizeIlikeTerm(body.job_title);
+      if (!term) return '';
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('title,company,description')
+        .not('description', 'is', null)
+        .ilike('title', `%${term}%`)
+        .limit(IMS_INTERVIEW_PREP_LIMIT);
+      if (error || !data?.length) return '';
+      return capImsSystemBlock(stringifyRows(data));
+    }
+
+    if (toolName === 'salary-negotiate') {
+      const term = sanitizeIlikeTerm(body.job_title);
+      if (!term) return '';
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('salary_min,salary_max,title,company,location')
+        .not('salary_min', 'is', null)
+        .ilike('title', `%${term}%`)
+        .limit(IMS_SALARY_AGGREGATE_LIMIT);
+      if (error || !data?.length) return '';
+      const toNum = (v) => {
+        if (v == null || v === '') return null;
+        const n = typeof v === 'number' ? v : Number(v);
+        return Number.isFinite(n) ? n : null;
+      };
+      const mins = data.map((r) => toNum(r.salary_min)).filter((n) => n != null);
+      const maxs = data.map((r) => toNum(r.salary_max)).filter((n) => n != null);
+      const sum = (arr) => arr.reduce((a, b) => a + b, 0);
+      const stats = {
+        row_count: data.length,
+        avg_salary_min: mins.length ? Math.round(sum(mins) / mins.length) : null,
+        avg_salary_max: maxs.length ? Math.round(sum(maxs) / maxs.length) : null,
+        min_salary_min: mins.length ? Math.min(...mins) : null,
+        max_salary_max: maxs.length ? Math.max(...maxs) : null,
+      };
+      const payload = {
+        aggregate_salary_stats_from_ims: stats,
+        sample_postings: data.slice(0, Math.min(15, data.length)),
+      };
+      return capImsSystemBlock(JSON.stringify(payload, null, 2));
+    }
+
+    if (
+      toolName === 'linkedin-outreach' ||
+      toolName === 'follow-up-email' ||
+      toolName === 'thank-you-note'
+    ) {
+      const term = sanitizeIlikeTerm(body.company);
+      if (!term) return '';
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('title,company,description,location')
+        .ilike('company', `%${term}%`)
+        .limit(IMS_COMPANY_TOOLS_LIMIT);
+      if (error || !data?.length) return '';
+      return capImsSystemBlock(stringifyRows(data));
+    }
+  } catch {
+    return '';
+  }
+
+  return '';
+}
+
 async function fetchToolDataContext(toolName, body, supabase) {
   if (!supabase) return '';
 
-  const jobKeyword = firstNonEmpty(body.job_title_keyword, body.job_title, body.role, body.target_role, body.title);
   const extractedTitle = firstNonEmpty(body.extracted_title, body.job_title, body.role, body.target_role, body.title);
   const companyName = firstNonEmpty(body.company_name, body.company);
   const targetRole = firstNonEmpty(body.target_role, body.job_title, body.role, body.title);
 
   try {
-    if (toolName === 'salary-negotiate') {
-      const keyword = jobKeyword || 'creator';
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('salary_min,salary_max,title,company,location')
-        .not('salary_min', 'is', null)
-        .ilike('title', `%${keyword}%`)
-        .limit(JOB_QUERY_LIMIT);
-      if (error || !data?.length) return '';
-      const contextRows = data.map(toContextJobRow);
-      return buildCappedDataContext(DB_DATA_CONTEXT_PREFIX.salaryNegotiate, contextRows);
-    }
-
     if (toolName === 'career-quiz') {
       const { data, error } = await supabase
         .from('jobs')
@@ -529,7 +641,7 @@ async function fetchToolDataContext(toolName, body, supabase) {
       return buildCappedDataContext(DB_DATA_CONTEXT_PREFIX.cultureDecoder, contextRows);
     }
 
-    if (toolName === 'resume-optimize' || toolName === 'resume-headline' || toolName === 'linkedin-analyzer') {
+    if (toolName === 'resume-headline' || toolName === 'linkedin-analyzer') {
       const keyword = targetRole || 'creator';
       const { data, error } = await supabase
         .from('jobs')
@@ -543,24 +655,9 @@ async function fetchToolDataContext(toolName, body, supabase) {
       if (toolName === 'linkedin-analyzer') {
         return buildCappedDataContext(DB_DATA_CONTEXT_PREFIX.linkedinAnalyzer, contextRows);
       }
-      if (toolName === 'resume-headline') {
-        return buildCappedDataContext(DB_DATA_CONTEXT_PREFIX.resumeHeadline, contextRows);
-      }
-      return buildCappedDataContext(DB_DATA_CONTEXT_PREFIX.resumeOptimize, contextRows);
+      return buildCappedDataContext(DB_DATA_CONTEXT_PREFIX.resumeHeadline, contextRows);
     }
 
-    if (toolName === 'cover-letter') {
-      const keyword = companyName;
-      if (!keyword) return '';
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('title,company,salary_min,salary_max,location')
-        .ilike('company', `%${keyword}%`)
-        .limit(JOB_QUERY_LIMIT);
-      if (error || !data?.length) return '';
-      const contextRows = data.map(toContextJobRow);
-      return buildCappedDataContext(DB_DATA_CONTEXT_PREFIX.coverLetter, contextRows);
-    }
   } catch {
     return '';
   }
@@ -638,7 +735,16 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const dataContext = await fetchToolDataContext(toolName, body, supabase);
+  const [imsArchiveContext, dataContext] = await Promise.all([
+    fetchImsArchiveSystemContext(toolName, body, supabase),
+    fetchToolDataContext(toolName, body, supabase),
+  ]);
+
+  let systemPrompt = config.system;
+  if (imsArchiveContext) {
+    systemPrompt = `${config.system}\n\n${IMS_ARCHIVE_SYSTEM_INTRO}\n${imsArchiveContext}`;
+  }
+
   if (dataContext) {
     userMessage = `${dataContext}${userMessage}`;
   }
@@ -649,7 +755,7 @@ module.exports = async (req, res) => {
     const message = await anthropic.messages.create({
       model: MODEL,
       max_tokens: getPublicOutputMaxTokens(toolName),
-      system: config.system,
+      system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],
     });
 

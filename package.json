@@ -15,9 +15,11 @@
     "@supabase/supabase-js": "^2.45.0",
     "cors": "^2.8.5",
     "csv-parser": "^3.2.0",
+    "fast-xml-parser": "^5.7.1",
     "google-search-results-nodejs": "^2.1.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.1.1",
+    "node-fetch": "^2.7.0",
     "rss-parser": "^3.13.0"
   }
 }
