@@ -5,13 +5,18 @@
  * COST OPTIMIZATION - data context capped at 1500 chars, default max_tokens 1000 (1500 for long-form tools), query limit 15 rows
  *
  * Body: { tool: string, ...toolParams }
- * Tools: cover-letter, resume-optimize, interview-prep, salary-negotiate,
- *        linkedin-outreach, follow-up-email, thank-you-note
+ * Tools include: cover-letter, resume-optimize, interview-prep, salary-negotiate,
+ * linkedin-outreach, follow-up-email, thank-you-note, archive-intelligence,
+ * opportunity-description-generator, and others below.
  */
 
 const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
 const { TONE_INSTRUCTIONS, DB_DATA_CONTEXT_PREFIX } = require('../lib/ai-tools-prompts');
+const {
+  ARCHIVE_INTELLIGENCE_SYSTEM,
+  OPPORTUNITY_DESCRIPTION_GENERATOR_SYSTEM,
+} = require('../lib/ai-tools-panel-prompts');
 
 const MODEL = 'claude-sonnet-4-20250514';
 const PUBLIC_RATE_LIMIT_PER_DAY = 50;
@@ -36,6 +41,7 @@ const LONG_FORM_TOOLS = new Set([
 ]);
 const JOB_QUERY_LIMIT = 15;
 const DATA_CONTEXT_CHAR_LIMIT = 1500;
+const IMS_SPECIAL_TOOLS_CONTEXT_LIMIT = 12000;
 const DATA_CONTEXT_OVERFLOW_SUFFIX = '...and more matching roles in our database.';
 
 /** Prepended to system prompts when IMS Supabase rows are attached (7 core career tools). */
@@ -66,6 +72,8 @@ function buildUserContext(b) {
 function getPublicOutputMaxTokens(toolName) {
   if (toolName === 'sponsorship-proposal') return PUBLIC_SPONSORSHIP_PROPOSAL_MAX_TOKENS;
   if (toolName === 'content-repurpose') return PUBLIC_CONTENT_REPURPOSE_MAX_TOKENS;
+  if (toolName === 'archive-intelligence') return 2000;
+  if (toolName === 'opportunity-description-generator') return 2500;
   if (LONG_FORM_TOOLS.has(toolName)) return PUBLIC_LONG_FORM_MAX_TOKENS;
   return PUBLIC_DEFAULT_MAX_TOKENS;
 }
@@ -150,6 +158,49 @@ ${TONE_INSTRUCTIONS}`,
 
 ${TONE_INSTRUCTIONS}`,
     buildUser: (b) => `Company: ${b.company}\nRole: ${b.role}\nInterviewer: ${b.interviewer_name}\nFormat (write exactly for this channel): ${b.format || 'Email'}\nTone: ${b.tone || 'Professional and Warm'}\nDiscussion points to reference: ${b.discussion_points}\n\nWrite a thank-you note that matches the format and tone above.`,
+  },
+  'archive-intelligence': {
+    maxTokens: 2000,
+    required: ['job_url', 'job_title', 'company', 'posted_date'],
+    system: `${ARCHIVE_INTELLIGENCE_SYSTEM}
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: (b) => {
+      const lines = [
+        'Archived opportunity (user-provided):',
+        `job_url: ${b.job_url}`,
+        `job_title: ${b.job_title}`,
+        `company: ${b.company}`,
+        `posted_date: ${b.posted_date}`,
+      ];
+      if (b.salary_min != null && String(b.salary_min).trim() !== '') lines.push(`salary_min: ${b.salary_min}`);
+      if (b.salary_max != null && String(b.salary_max).trim() !== '') lines.push(`salary_max: ${b.salary_max}`);
+      if (b.location) lines.push(`location: ${b.location}`);
+      if (b.job_type) lines.push(`job_type: ${b.job_type}`);
+      return `${lines.join('\n')}\n\nGenerate the Archive Intelligence Panel as specified.`;
+    },
+  },
+  'opportunity-description-generator': {
+    maxTokens: 2500,
+    required: ['job_title', 'company', 'seniority_level', 'location_type', 'city'],
+    system: `${OPPORTUNITY_DESCRIPTION_GENERATOR_SYSTEM}
+
+${TONE_INSTRUCTIONS}`,
+    buildUser: (b) => {
+      const lines = [
+        'Opportunity description request:',
+        `job_title: ${b.job_title}`,
+        `company: ${b.company}`,
+        `seniority_level: ${b.seniority_level}`,
+        `location_type: ${b.location_type}`,
+        `city: ${b.city}`,
+      ];
+      if (b.company_focus) lines.push(`company_focus: ${b.company_focus}`);
+      if (b.unique_differentiator) lines.push(`unique_differentiator: ${b.unique_differentiator}`);
+      if (b.salary_min != null && String(b.salary_min).trim() !== '') lines.push(`salary_min (user): ${b.salary_min}`);
+      if (b.salary_max != null && String(b.salary_max).trim() !== '') lines.push(`salary_max (user): ${b.salary_max}`);
+      return `${lines.join('\n')}\n\nGenerate the complete opportunity description HTML as specified.`;
+    },
   },
   'caption-writer': {
     maxTokens: MAX_TOKENS_CTX,
@@ -495,6 +546,152 @@ function capImsSystemBlock(text) {
   return `${text.slice(0, keep)}${DATA_CONTEXT_OVERFLOW_SUFFIX}`;
 }
 
+function capImsSpecialSystemBlock(text) {
+  if (!text) return '';
+  if (text.length <= IMS_SPECIAL_TOOLS_CONTEXT_LIMIT) return text;
+  const suffix = '... (truncated)';
+  return `${text.slice(0, IMS_SPECIAL_TOOLS_CONTEXT_LIMIT - suffix.length)}${suffix}`;
+}
+
+function toNumSalary(v) {
+  if (v == null || v === '') return null;
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function sumNumericArr(arr) {
+  return arr.reduce((a, b) => a + b, 0);
+}
+
+function aggregateSignalFrequencyRows(rows) {
+  const list = rows || [];
+  const mins = list.map((r) => toNumSalary(r.salary_min)).filter((n) => n != null);
+  const maxs = list.map((r) => toNumSalary(r.salary_max)).filter((n) => n != null);
+  const times = list
+    .map((r) => r.posted_date)
+    .filter(Boolean)
+    .map((d) => new Date(d).getTime())
+    .filter((t) => !Number.isNaN(t));
+  return {
+    signal_count: list.length,
+    avg_salary_min: mins.length ? Math.round(sumNumericArr(mins) / mins.length) : null,
+    avg_salary_max: maxs.length ? Math.round(sumNumericArr(maxs) / maxs.length) : null,
+    first_seen: times.length ? new Date(Math.min(...times)).toISOString() : null,
+    last_seen: times.length ? new Date(Math.max(...times)).toISOString() : null,
+  };
+}
+
+function aggregateCompanySignalsRows(rows) {
+  const list = rows || [];
+  const times = list
+    .map((r) => r.posted_date)
+    .filter(Boolean)
+    .map((d) => new Date(d).getTime())
+    .filter((t) => !Number.isNaN(t));
+  return {
+    company_signal_count: list.length,
+    first_company_post: times.length ? new Date(Math.min(...times)).toISOString() : null,
+    last_company_post: times.length ? new Date(Math.max(...times)).toISOString() : null,
+  };
+}
+
+function truncateDescriptionText(s, max) {
+  const t = String(s ?? '');
+  if (t.length <= max) return t;
+  return `${t.slice(0, max)}...`;
+}
+
+async function fetchArchiveIntelligenceImsContext(body, supabase) {
+  const term = sanitizeIlikeTerm(body.job_title);
+  const companyTerm = sanitizeIlikeTerm(body.company);
+  if (!term || !companyTerm) return '';
+
+  const [aRes, bRes, cRes] = await Promise.all([
+    supabase
+      .from('jobs')
+      .select('salary_min,salary_max,posted_date')
+      .eq('source', 'IMS')
+      .ilike('title', `%${term}%`),
+    supabase
+      .from('jobs')
+      .select('posted_date')
+      .eq('source', 'IMS')
+      .ilike('company', `%${companyTerm}%`),
+    supabase
+      .from('jobs')
+      .select('title,company,salary_min,salary_max,location,posted_date,source_url')
+      .eq('source', 'IMS')
+      .not('description', 'is', null)
+      .ilike('title', `%${term}%`)
+      .order('posted_date', { ascending: false })
+      .limit(5),
+  ]);
+
+  if (aRes.error || bRes.error || cRes.error) return '';
+
+  const queryA = aggregateSignalFrequencyRows(aRes.data);
+  const queryB = aggregateCompanySignalsRows(bRes.data);
+  const queryC = (cRes.data || []).map((r) => ({
+    title: r.title,
+    company: r.company,
+    salary_min: r.salary_min,
+    salary_max: r.salary_max,
+    location: r.location,
+    published_at: r.posted_date,
+    url: r.source_url,
+  }));
+
+  const payload = {
+    query_a_signal_frequency: queryA,
+    query_b_company_signals: queryB,
+    query_c_similar_recent_roles: queryC,
+  };
+  return capImsSpecialSystemBlock(JSON.stringify(payload, null, 2));
+}
+
+async function fetchOpportunityDescriptionImsContext(body, supabase) {
+  const term = sanitizeIlikeTerm(body.job_title);
+  if (!term) return '';
+
+  const [aRes, bRes] = await Promise.all([
+    supabase
+      .from('jobs')
+      .select('salary_min,salary_max')
+      .eq('source', 'IMS')
+      .not('salary_min', 'is', null)
+      .ilike('title', `%${term}%`),
+    supabase
+      .from('jobs')
+      .select('description,posted_date')
+      .eq('source', 'IMS')
+      .not('description', 'is', null)
+      .ilike('title', `%${term}%`)
+      .order('posted_date', { ascending: false })
+      .limit(8),
+  ]);
+
+  if (aRes.error || bRes.error) return '';
+
+  const salRows = aRes.data || [];
+  const mins = salRows.map((r) => toNumSalary(r.salary_min)).filter((n) => n != null);
+  const maxs = salRows.map((r) => toNumSalary(r.salary_max)).filter((n) => n != null);
+  const queryA = {
+    avg_salary_min: mins.length ? Math.round(sumNumericArr(mins) / mins.length) : null,
+    avg_salary_max: maxs.length ? Math.round(sumNumericArr(maxs) / maxs.length) : null,
+    signal_count: salRows.length,
+  };
+
+  const descriptions = (bRes.data || []).map((r) => ({
+    description: truncateDescriptionText(r.description, 4000),
+  }));
+
+  const payload = {
+    query_a_salary_benchmarks: queryA,
+    query_b_common_requirements_from_descriptions: descriptions,
+  };
+  return capImsSpecialSystemBlock(JSON.stringify(payload, null, 2));
+}
+
 /**
  * Real job rows / aggregates for the 7 core tools — appended to the system prompt (not user message).
  */
@@ -502,6 +699,14 @@ async function fetchImsArchiveSystemContext(toolName, body, supabase) {
   if (!supabase) return '';
 
   try {
+    if (toolName === 'archive-intelligence') {
+      return await fetchArchiveIntelligenceImsContext(body, supabase);
+    }
+
+    if (toolName === 'opportunity-description-generator') {
+      return await fetchOpportunityDescriptionImsContext(body, supabase);
+    }
+
     if (toolName === 'cover-letter') {
       const term = sanitizeIlikeTerm(body.job_title);
       if (!term) return '';
