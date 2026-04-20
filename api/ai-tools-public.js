@@ -1003,39 +1003,63 @@ function applyArchiveIntelligencePostProcessing(rawOutput) {
   if (!rawOutput || typeof rawOutput !== 'string') return rawOutput;
   let out = rawOutput;
 
-  // REPLACEMENT 1: rewrite the containing block of the
-  // "CREATORVERSED handles end-to-end creator economy recruiting" sentence —
-  // works whether Claude emits it inside <p>...</p> or as a plain text line.
-  const EMPLOYER_CTA_P =
-    '<p><em>Need help hiring for this role? <a href="https://www.creatorrecruiting.com" target="_blank">CREATORVERSED handles end-to-end creator economy recruiting</a> — from sourcing and vetting to placement and onboarding.</em></p>';
-  out = replacePhraseBlock(
-    out,
-    ['CREATORVERSED handles end-to-end creator economy recruiting'],
-    EMPLOYER_CTA_P
-  );
+  const EMPLOYER_CTA = '<p><em>Need help hiring for this role? <a href="https://www.creatorrecruiting.com" target="_blank">CREATORVERSED handles end-to-end creator economy recruiting</a> \u2014 from sourcing and vetting to placement and onboarding.</em></p>';
 
-  // REPLACEMENT 2: rewrite the containing block of the IMS archive browse-link
-  // phrase — also works with or without surrounding <p> tags.
-  const BROWSE_ARCHIVE_P =
-    '<p><a href="https://www.influencermarketingsociety.com/jobs/search?jt=+%E2%9A%A0++%5BArchived%5D+No+Longer+Accepting+Applicants&sort=published_at" target="_blank">Browse the full IMS archive →</a></p>';
-  out = replacePhraseBlock(
-    out,
-    ['Browse the full IMS archive', 'Browse for full archive'],
-    BROWSE_ARCHIVE_P
-  );
+  const BROWSE_ARCHIVE = '<p><a href="https://www.influencermarketingsociety.com/jobs/search?jt=+%E2%9A%A0++%5BArchived%5D+No+Longer+Accepting+Applicants&sort=published_at" target="_blank">Browse the full IMS archive \u2192</a></p>';
 
-  // REPLACEMENT 3 (unchanged): wrap any bare-text "influencermarketingsociety.com"
-  // in an anchor with target="_blank". Protect every existing <a>...</a> block
-  // first with a placeholder so we never re-wrap already-linked text and never
-  // mangle anchors pointing at other URLs on the same domain.
+  // Find and replace the recruiting CTA line
+  // Search for the unique phrase regardless of surrounding tags
+  const recruitingPhrase = 'CREATORVERSED handles end-to-end creator economy recruiting';
+  const recruitingIdx = out.toLowerCase().indexOf(recruitingPhrase.toLowerCase());
+  if (recruitingIdx !== -1) {
+    // Find the start of this block - look back for < or start of line
+    let blockStart = recruitingIdx;
+    while (blockStart > 0 && out[blockStart] !== '\n' && out.substring(blockStart - 2, blockStart) !== '<p') {
+      blockStart--;
+    }
+    if (out[blockStart] === '<') blockStart--; // include the
+    // Find the end of this block - look forward for > or end of line
+    let blockEnd = recruitingIdx + recruitingPhrase.length;
+    while (blockEnd < out.length && out[blockEnd] !== '\n') {
+      if (out[blockEnd] === '<' && out.substring(blockEnd, blockEnd + 4) === '</p>') {
+        blockEnd += 4;
+        break;
+      }
+      blockEnd++;
+    }
+    out = out.substring(0, blockStart) + EMPLOYER_CTA + out.substring(blockEnd);
+  }
+
+  // Find and replace the archive browse line
+  const archivePhrase = 'Browse the full IMS archive';
+  const archiveIdx = out.toLowerCase().indexOf(archivePhrase.toLowerCase());
+  console.log('archive-intelligence post-processing:', { recruitingFound: recruitingIdx !== -1, archiveFound: archiveIdx !== -1 });
+  if (archiveIdx !== -1) {
+    let blockStart = archiveIdx;
+    while (blockStart > 0 && out[blockStart] !== '\n' && out.substring(blockStart - 2, blockStart) !== '<p') {
+      blockStart--;
+    }
+    if (out[blockStart] === '<') blockStart--;
+    let blockEnd = archiveIdx + archivePhrase.length;
+    while (blockEnd < out.length && out[blockEnd] !== '\n') {
+      if (out[blockEnd] === '<' && out.substring(blockEnd, blockEnd + 4) === '</p>') {
+        blockEnd += 4;
+        break;
+      }
+      blockEnd++;
+    }
+    out = out.substring(0, blockStart) + BROWSE_ARCHIVE + out.substring(blockEnd);
+  }
+
+  // Wrap bare influencermarketingsociety.com text in anchor
+  // Protect existing anchors first
   const savedAnchors = [];
   out = out.replace(/<a\b[^>]*>[\s\S]*?<\/a>/gi, (match) => {
-    const token = `\u0000IMSA${savedAnchors.length}\u0000`;
+    const token = '\u0000IMSA' + savedAnchors.length + '\u0000';
     savedAnchors.push(match);
     return token;
   });
-  out = out.replace(
-    /influencermarketingsociety\.com/gi,
+  out = out.replace(/influencermarketingsociety\.com/gi,
     '<a href="https://www.influencermarketingsociety.com" target="_blank">influencermarketingsociety.com</a>'
   );
   out = out.replace(/\u0000IMSA(\d+)\u0000/g, (_, n) => savedAnchors[Number(n)]);
