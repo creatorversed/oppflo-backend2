@@ -62,6 +62,35 @@ function sanitizeIlikeTerm(raw) {
     .trim();
 }
 
+// Seniority/modifier/stop words stripped when deriving role-family keywords
+// from a job title. What remains are the functional keywords that describe the
+// role (e.g. "influencer", "marketing", "manager") which we then OR together
+// against jobs.title for the broader role-family Supabase query.
+const ROLE_FAMILY_STOPWORDS = new Set([
+  'senior', 'sr', 'sr.', 'jr', 'jr.', 'junior', 'lead', 'principal', 'staff',
+  'associate', 'assistant', 'entry', 'level', 'mid', 'chief', 'head', 'vp',
+  'svp', 'evp', 'avp', 'director', 'executive', 'global', 'regional', 'remote',
+  'hybrid', 'contract', 'contractor', 'freelance', 'freelancer', 'intern',
+  'internship', 'temporary', 'temp', 'part', 'full', 'time', 'of', 'the',
+  'and', '&', 'at', 'for', 'a', 'an', 'to', 'in', 'on', 'with', 'i', 'ii',
+  'iii', 'iv', 'v', '-', '/', '|',
+]);
+
+function extractRoleFamilyKeywords(rawTitle) {
+  const cleaned = sanitizeIlikeTerm(rawTitle).toLowerCase();
+  if (!cleaned) return [];
+  const tokens = cleaned
+    .split(/[\s,/\-|()]+/)
+    .map((t) => t.replace(/[^a-z0-9+]/g, ''))
+    .filter((t) => t && t.length > 1 && !ROLE_FAMILY_STOPWORDS.has(t));
+  const unique = [];
+  for (const t of tokens) {
+    if (!unique.includes(t)) unique.push(t);
+    if (unique.length >= 3) break;
+  }
+  return unique;
+}
+
 function buildUserContext(b) {
   const entries = Object.entries(b)
     .filter(([k]) => k !== 'tool')
@@ -606,7 +635,16 @@ async function fetchArchiveIntelligenceImsContext(body, supabase) {
   const companyTerm = sanitizeIlikeTerm(body.company);
   if (!term || !companyTerm) return '';
 
-  const [aRes, bRes, cRes] = await Promise.all([
+  // Query A (exact): rows matching the full title
+  // Query B (role family): rows matching any of 2-3 core functional keywords
+  //   extracted from the title. Lets Claude distinguish between a rare exact
+  //   title and a well-established core function.
+  const familyKeywords = extractRoleFamilyKeywords(body.job_title);
+  const familyOrClause = familyKeywords
+    .map((kw) => `title.ilike.%${kw}%`)
+    .join(',');
+
+  const promises = [
     supabase
       .from('jobs')
       .select('salary_min,salary_max,posted_date')
@@ -625,9 +663,24 @@ async function fetchArchiveIntelligenceImsContext(body, supabase) {
       .ilike('title', `%${term}%`)
       .order('posted_date', { ascending: false })
       .limit(5),
-  ]);
+  ];
+
+  if (familyOrClause) {
+    promises.push(
+      supabase
+        .from('jobs')
+        .select('salary_min,salary_max,posted_date')
+        .eq('source', 'IMS')
+        .or(familyOrClause)
+    );
+  }
+
+  const [aRes, bRes, cRes, fRes] = await Promise.all(promises);
 
   if (aRes.error || bRes.error || cRes.error) return '';
+  if (fRes && fRes.error) {
+    // role family query is best-effort — fall through with null
+  }
 
   const queryA = aggregateSignalFrequencyRows(aRes.data);
   const queryB = aggregateCompanySignalsRows(bRes.data);
@@ -641,8 +694,28 @@ async function fetchArchiveIntelligenceImsContext(body, supabase) {
     url: r.source_url,
   }));
 
+  const familyRows = fRes && !fRes.error ? fRes.data : null;
+  const familyAgg = familyRows ? aggregateSignalFrequencyRows(familyRows) : null;
+  const queryRoleFamily = familyAgg
+    ? {
+        keywords: familyKeywords,
+        role_family_count: familyAgg.signal_count,
+        avg_salary_min: familyAgg.avg_salary_min,
+        avg_salary_max: familyAgg.avg_salary_max,
+      }
+    : {
+        keywords: familyKeywords,
+        role_family_count: null,
+        avg_salary_min: null,
+        avg_salary_max: null,
+      };
+
   const payload = {
+    exact_signal_count: queryA.signal_count,
+    role_family_count: queryRoleFamily.role_family_count,
+    company_signal_count: queryB.company_signal_count,
     query_a_signal_frequency: queryA,
+    query_role_family: queryRoleFamily,
     query_b_company_signals: queryB,
     query_c_similar_recent_roles: queryC,
   };
