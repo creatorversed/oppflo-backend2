@@ -943,6 +943,55 @@ async function fetchToolDataContext(toolName, body, supabase) {
   return '';
 }
 
+// Archive-Intelligence-only post-processor. Guarantees the three critical links
+// (CREATORVERSED recruiting CTA, IMS archive browse link, influencermarketingsociety.com
+// text mentions) are emitted as real clickable anchors with target="_blank",
+// regardless of how Claude phrases the surrounding copy. Scoped to tool === 'archive-intelligence'
+// at the call site; does not touch any other tool's output.
+function applyArchiveIntelligencePostProcessing(rawOutput) {
+  if (!rawOutput || typeof rawOutput !== 'string') return rawOutput;
+  let out = rawOutput;
+
+  // REPLACEMENT 1: rewrite the entire <p>...</p> that contains the
+  // "CREATORVERSED handles end-to-end creator economy recruiting" sentence
+  // to the hardcoded Employer Intelligence closing paragraph. The tempered
+  // `(?:(?!<\/?p\b)[\s\S])*?` pattern prevents the match from spanning
+  // across sibling <p> tags.
+  const EMPLOYER_CTA_P =
+    '<p><em>Need help hiring for this role? <a href="https://www.creatorrecruiting.com" target="_blank">CREATORVERSED handles end-to-end creator economy recruiting</a> — from sourcing and vetting to placement and onboarding.</em></p>';
+  out = out.replace(
+    /<p\b[^>]*>(?:(?!<\/?p\b)[\s\S])*?creatorversed\s+handles\s+end-to-end\s+creator\s+economy\s+recruiting(?:(?!<\/?p\b)[\s\S])*?<\/p>/gi,
+    EMPLOYER_CTA_P
+  );
+
+  // REPLACEMENT 2: rewrite the entire <p>...</p> that contains any of the
+  // three archive browse-link trigger phrases to the hardcoded IMS archive link.
+  const BROWSE_ARCHIVE_P =
+    '<p><a href="https://www.influencermarketingsociety.com/jobs/search?jt=+%E2%9A%A0++%5BArchived%5D+No+Longer+Accepting+Applicants&sort=published_at" target="_blank">Browse the full IMS archive →</a></p>';
+  out = out.replace(
+    /<p\b[^>]*>(?:(?!<\/?p\b)[\s\S])*?(?:browse\s+the\s+full\s+ims\s+archive|browse\s+for\s+full\s+archive|full\s+ims\s+archive)(?:(?!<\/?p\b)[\s\S])*?<\/p>/gi,
+    BROWSE_ARCHIVE_P
+  );
+
+  // REPLACEMENT 3: wrap any bare-text "influencermarketingsociety.com" in an
+  // anchor with target="_blank". Protect every existing <a>...</a> block first
+  // with a placeholder so we never re-wrap already-linked text and never mangle
+  // anchors pointing at other URLs on the same domain.
+  const savedAnchors = [];
+  out = out.replace(/<a\b[^>]*>[\s\S]*?<\/a>/gi, (match) => {
+    const token = `\u0000IMSA${savedAnchors.length}\u0000`;
+    savedAnchors.push(match);
+    return token;
+  });
+  out = out.replace(
+    /influencermarketingsociety\.com/gi,
+    '<a href="https://www.influencermarketingsociety.com" target="_blank">influencermarketingsociety.com</a>'
+  );
+  out = out.replace(/\u0000IMSA(\d+)\u0000/g, (_, n) => savedAnchors[Number(n)]);
+
+  return out;
+}
+
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.status(204).end();
@@ -1043,11 +1092,19 @@ module.exports = async (req, res) => {
     const outputTokens = message.usage?.output_tokens ?? 0;
     const totalTokens = inputTokens + outputTokens;
 
+    // Scoped post-processing: archive-intelligence only. Hardcodes the three
+    // critical links so they always render as clickable anchors regardless of
+    // Claude's phrasing. No other tool output is modified.
+    const finalOutput =
+      toolName === 'archive-intelligence'
+        ? applyArchiveIntelligencePostProcessing(output)
+        : output;
+
     recordRequest(ip);
 
     res.setHeader('Content-Type', 'application/json');
     res.status(200).json({
-      result: output,
+      result: finalOutput,
       tool: toolName,
       usage: { input_tokens: inputTokens, output_tokens: outputTokens, total: totalTokens },
     });
