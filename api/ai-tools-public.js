@@ -948,35 +948,86 @@ async function fetchToolDataContext(toolName, body, supabase) {
 // text mentions) are emitted as real clickable anchors with target="_blank",
 // regardless of how Claude phrases the surrounding copy. Scoped to tool === 'archive-intelligence'
 // at the call site; does not touch any other tool's output.
+
+// Helper for REPLACEMENTS 1 and 2. Case-insensitive scan for any needle phrase,
+// then find the containing "block" and replace it wholesale with `replacement`.
+// Block boundary rules:
+//   - If the needle sits inside a <p>...</p> (nearest preceding <p> has no
+//     </p> between it and the needle), the block is that entire <p>...</p>.
+//   - Otherwise the block is the containing line, bounded by the nearest
+//     preceding and following line breaks (or string boundaries).
+// Handles repeated occurrences and is idempotent: if the block already equals
+// the replacement, it skips past it.
+function replacePhraseBlock(text, needles, replacement) {
+  let searchFrom = 0;
+  const maxIter = 20;
+  for (let i = 0; i < maxIter; i++) {
+    const lower = text.toLowerCase();
+    let bestIdx = -1;
+    for (const n of needles) {
+      const idx = lower.indexOf(n.toLowerCase(), searchFrom);
+      if (idx !== -1 && (bestIdx === -1 || idx < bestIdx)) bestIdx = idx;
+    }
+    if (bestIdx === -1) break;
+
+    const lastOpenP = lower.lastIndexOf('<p', bestIdx);
+    const lastCloseP = lower.lastIndexOf('</p>', bestIdx);
+    const insideP = lastOpenP !== -1 && lastOpenP > lastCloseP;
+
+    let blockStart;
+    let blockEnd;
+    if (insideP) {
+      blockStart = lastOpenP;
+      const closeP = lower.indexOf('</p>', bestIdx);
+      blockEnd = closeP !== -1 ? closeP + 4 : text.length;
+    } else {
+      const prevNewline = bestIdx === 0 ? -1 : lower.lastIndexOf('\n', bestIdx - 1);
+      blockStart = prevNewline >= 0 ? prevNewline + 1 : 0;
+      const nextNewline = lower.indexOf('\n', bestIdx);
+      blockEnd = nextNewline !== -1 ? nextNewline : text.length;
+    }
+
+    const current = text.slice(blockStart, blockEnd);
+    if (current === replacement) {
+      searchFrom = blockEnd;
+      continue;
+    }
+
+    text = text.slice(0, blockStart) + replacement + text.slice(blockEnd);
+    searchFrom = blockStart + replacement.length;
+  }
+  return text;
+}
+
 function applyArchiveIntelligencePostProcessing(rawOutput) {
   if (!rawOutput || typeof rawOutput !== 'string') return rawOutput;
   let out = rawOutput;
 
-  // REPLACEMENT 1: rewrite the entire <p>...</p> that contains the
-  // "CREATORVERSED handles end-to-end creator economy recruiting" sentence
-  // to the hardcoded Employer Intelligence closing paragraph. The tempered
-  // `(?:(?!<\/?p\b)[\s\S])*?` pattern prevents the match from spanning
-  // across sibling <p> tags.
+  // REPLACEMENT 1: rewrite the containing block of the
+  // "CREATORVERSED handles end-to-end creator economy recruiting" sentence —
+  // works whether Claude emits it inside <p>...</p> or as a plain text line.
   const EMPLOYER_CTA_P =
     '<p><em>Need help hiring for this role? <a href="https://www.creatorrecruiting.com" target="_blank">CREATORVERSED handles end-to-end creator economy recruiting</a> — from sourcing and vetting to placement and onboarding.</em></p>';
-  out = out.replace(
-    /<p\b[^>]*>(?:(?!<\/?p\b)[\s\S])*?creatorversed\s+handles\s+end-to-end\s+creator\s+economy\s+recruiting(?:(?!<\/?p\b)[\s\S])*?<\/p>/gi,
+  out = replacePhraseBlock(
+    out,
+    ['CREATORVERSED handles end-to-end creator economy recruiting'],
     EMPLOYER_CTA_P
   );
 
-  // REPLACEMENT 2: rewrite the entire <p>...</p> that contains any of the
-  // three archive browse-link trigger phrases to the hardcoded IMS archive link.
+  // REPLACEMENT 2: rewrite the containing block of the IMS archive browse-link
+  // phrase — also works with or without surrounding <p> tags.
   const BROWSE_ARCHIVE_P =
     '<p><a href="https://www.influencermarketingsociety.com/jobs/search?jt=+%E2%9A%A0++%5BArchived%5D+No+Longer+Accepting+Applicants&sort=published_at" target="_blank">Browse the full IMS archive →</a></p>';
-  out = out.replace(
-    /<p\b[^>]*>(?:(?!<\/?p\b)[\s\S])*?(?:browse\s+the\s+full\s+ims\s+archive|browse\s+for\s+full\s+archive|full\s+ims\s+archive)(?:(?!<\/?p\b)[\s\S])*?<\/p>/gi,
+  out = replacePhraseBlock(
+    out,
+    ['Browse the full IMS archive', 'Browse for full archive'],
     BROWSE_ARCHIVE_P
   );
 
-  // REPLACEMENT 3: wrap any bare-text "influencermarketingsociety.com" in an
-  // anchor with target="_blank". Protect every existing <a>...</a> block first
-  // with a placeholder so we never re-wrap already-linked text and never mangle
-  // anchors pointing at other URLs on the same domain.
+  // REPLACEMENT 3 (unchanged): wrap any bare-text "influencermarketingsociety.com"
+  // in an anchor with target="_blank". Protect every existing <a>...</a> block
+  // first with a placeholder so we never re-wrap already-linked text and never
+  // mangle anchors pointing at other URLs on the same domain.
   const savedAnchors = [];
   out = out.replace(/<a\b[^>]*>[\s\S]*?<\/a>/gi, (match) => {
     const token = `\u0000IMSA${savedAnchors.length}\u0000`;
