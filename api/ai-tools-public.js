@@ -1161,7 +1161,16 @@ function applyArchiveIntelligencePostProcessing(rawOutput, context) {
   // If only one <hr> exists we still inject before it as a safe degradation;
   // if none exists, append EMPLOYER_BLOCK to the end so the section is
   // never silently lost.
-  if (!out.includes('Employer Intelligence')) {
+  // Only skip injection when a PROPER h3 heading for Employer Intelligence
+  // is actually rendered. The bare string "Employer Intelligence" can show
+  // up in plain prose, instruction echoes, or comments without producing a
+  // visible section, which previously caused us to skip injection even
+  // though the heading was missing.
+  if (
+    !out.includes('🏢 Employer Intelligence') &&
+    !out.includes('Employer Intelligence</h3>') &&
+    !out.includes('<h3>Employer')
+  ) {
     const job_title = ctx.job_title || 'this role';
     const company = ctx.company || 'this company';
 
