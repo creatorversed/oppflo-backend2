@@ -1141,7 +1141,7 @@ function applyArchiveIntelligencePostProcessing(rawOutput, context) {
   // see in Vercel logs whether Claude produced Employer Intelligence and
   // where the <hr> anchors are for the fallback injector.
   console.log('archive-post-processing-debug:', {
-    hasEmployerIntelligence: out.includes('Employer Intelligence'),
+    employerH3Count: (out.match(/<h3[^>]*>.*?Employer Intelligence/g) || []).length,
     hrCount: (out.match(/<hr/gi) || []).length,
     lastHrIndex: (() => {
       const matches = [...out.matchAll(/<hr\b[^>]*>/gi)];
@@ -1216,36 +1216,79 @@ function applyArchiveIntelligencePostProcessing(rawOutput, context) {
       employerCountAfterInject: (out.match(/🏢 Employer Intelligence/g) || []).length,
     });
 
-    // Deduplicate: if Claude already emitted a 🏢 Employer Intelligence
-    // heading, the unconditional injection above now produced two of them.
-    // Detect the duplicate (any occurrence beyond the first) and excise the
-    // entire duplicate block from that heading up to — but not including —
-    // the next <hr>, so only one Employer Intelligence section remains.
+    // Deduplicate: collect every 🏢 Employer Intelligence occurrence. If
+    // Claude mentioned the phrase in prose earlier in the output without
+    // producing a proper <h3> heading, the injected block will be the
+    // SECOND (or later) occurrence — so first-wins is wrong. Instead, keep
+    // whichever occurrence has <h3 within 15 characters before it (the real
+    // heading), and excise all other occurrences together with their
+    // surrounding blocks. If multiple are h3-backed (Claude emitted a proper
+    // heading AND we injected one), we keep the last h3-backed one — which
+    // in the injection layout above is always our guaranteed block.
     const empHeading = '🏢 Employer Intelligence';
-    const firstEmp = out.indexOf(empHeading);
-    if (firstEmp !== -1) {
-      const secondEmp = out.indexOf(empHeading, firstEmp + empHeading.length);
-      if (secondEmp !== -1) {
-        // Walk back from the second heading to the <h3> opener that owns it.
-        const h3OpenIdx = out.lastIndexOf('<h3', secondEmp);
-        // Walk back one more step to the <hr><br> (or <hr>) that opens the
-        // duplicate section, so we also remove its leading divider.
-        let dupStart = h3OpenIdx !== -1 ? h3OpenIdx : secondEmp;
-        const hrBeforeDup = out.lastIndexOf('<hr', dupStart);
-        if (hrBeforeDup !== -1 && hrBeforeDup > firstEmp) {
-          dupStart = hrBeforeDup;
+    const occurrences = [];
+    {
+      let cursor = 0;
+      let idx;
+      while ((idx = out.indexOf(empHeading, cursor)) !== -1) {
+        occurrences.push(idx);
+        cursor = idx + empHeading.length;
+      }
+    }
+
+    if (occurrences.length >= 2) {
+      const h3Backed = occurrences.map((pos) => {
+        const window = out.substring(Math.max(0, pos - 15), pos);
+        return window.includes('<h3');
+      });
+
+      let keeperIdx = -1;
+      for (let i = h3Backed.length - 1; i >= 0; i--) {
+        if (h3Backed[i]) {
+          keeperIdx = i;
+          break;
         }
-        // Find the next <hr> after the duplicate heading and treat that as
-        // the end of the duplicate section (inclusive of its trailing <br>).
-        const nextHrAfterDup = out.indexOf('<hr', secondEmp);
-        if (nextHrAfterDup !== -1 && dupStart < nextHrAfterDup) {
-          // Advance past "<hr...>" and optional "<br>" so we consume the
-          // full closing divider of the duplicate section.
-          const hrTagEnd = out.indexOf('>', nextHrAfterDup);
-          let dupEnd = hrTagEnd !== -1 ? hrTagEnd + 1 : nextHrAfterDup;
-          if (out.substr(dupEnd, 4).toLowerCase() === '<br>') dupEnd += 4;
-          out = out.slice(0, dupStart) + out.slice(dupEnd);
+      }
+      if (keeperIdx === -1) keeperIdx = occurrences.length - 1;
+
+      // Compute removal ranges for every non-keeper occurrence. Each range
+      // extends from the nearest preceding <hr> (or <h3> if none) to the
+      // closing <hr> (plus its optional trailing <br>) after the heading.
+      // Falls back to the next </p> if no trailing <hr> is present.
+      const ranges = [];
+      for (let i = 0; i < occurrences.length; i++) {
+        if (i === keeperIdx) continue;
+        const pos = occurrences[i];
+        const prevOccurrence = i > 0 ? occurrences[i - 1] : -1;
+        const nextOccurrence = i < occurrences.length - 1 ? occurrences[i + 1] : out.length;
+
+        let start = out.lastIndexOf('<hr', pos);
+        if (start === -1 || start <= prevOccurrence) {
+          const h3Back = out.lastIndexOf('<h3', pos);
+          start = h3Back !== -1 && h3Back > prevOccurrence ? h3Back : pos;
         }
+
+        let end;
+        const nextHr = out.indexOf('<hr', pos);
+        if (nextHr !== -1 && nextHr < nextOccurrence) {
+          const hrTagEnd = out.indexOf('>', nextHr);
+          end = hrTagEnd !== -1 ? hrTagEnd + 1 : nextHr;
+          if (out.substr(end, 4).toLowerCase() === '<br>') end += 4;
+        } else {
+          const nextClosingP = out.indexOf('</p>', pos);
+          end =
+            nextClosingP !== -1 && nextClosingP < nextOccurrence
+              ? nextClosingP + 4
+              : pos + empHeading.length;
+        }
+
+        if (end > start) ranges.push({ start, end });
+      }
+
+      // Apply in reverse so earlier indices stay valid.
+      ranges.sort((a, b) => b.start - a.start);
+      for (const r of ranges) {
+        out = out.slice(0, r.start) + out.slice(r.end);
       }
     }
   }
