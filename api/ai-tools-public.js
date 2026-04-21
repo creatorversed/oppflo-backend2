@@ -1003,13 +1003,13 @@ function applyArchiveIntelligencePostProcessing(rawOutput) {
   if (!rawOutput || typeof rawOutput !== 'string') return rawOutput;
   let out = rawOutput;
 
-  const EMPLOYER_CTA = '<p>Need help building your creator economy team?<br><a href="https://www.creatorrecruiting.com" target="_blank">CREATORVERSED handles end-to-end creator economy recruiting</a> \u2014 from sourcing and vetting to placement.</p>';
+  const EMPLOYER_CTA = '<p><em>Need help building your creator economy team? Visit <a href="https://www.creatorrecruiting.com" target="_blank">creatorrecruiting.com</a></em></p>';
 
   const BROWSE_ARCHIVE = '<p><a href="https://www.influencermarketingsociety.com/jobs/search?jt=+%E2%9A%A0++%5BArchived%5D+No+Longer+Accepting+Applicants&sort=published_at" target="_blank">Browse the full IMS archive \u2192</a></p>';
 
   // Find and replace the recruiting CTA line
   // Search for the unique phrase regardless of surrounding tags
-  const recruitingPhrase = 'CREATORVERSED handles end-to-end creator economy recruiting';
+  const recruitingPhrase = 'Need help building your creator economy team';
   const recruitingIdx = out.toLowerCase().indexOf(recruitingPhrase.toLowerCase());
   if (recruitingIdx !== -1) {
     // Find the start of this block - look back for < or start of line
