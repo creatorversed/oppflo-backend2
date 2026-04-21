@@ -631,6 +631,17 @@ function truncateDescriptionText(s, max) {
 }
 
 async function fetchArchiveIntelligenceImsContext(body, supabase) {
+  // Archive Intelligence needs to read the full IMS jobs table. RLS policies
+  // on `jobs` restrict the anon/publishable key, so queries made with the
+  // shared (anon-keyed) supabase client silently drop rows and make the
+  // archive look empty. We construct a dedicated service-role client here —
+  // and here only — so archive-intelligence can bypass RLS without affecting
+  // any other tool's data fetch. Falls back to the shared client if the
+  // service key is not configured in this environment.
+  const serviceUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_KEY;
+  const db = serviceUrl && serviceKey ? createClient(serviceUrl, serviceKey) : supabase;
+
   const term = sanitizeIlikeTerm(body.job_title);
   const companyTerm = sanitizeIlikeTerm(body.company);
   if (!term || !companyTerm) return '';
@@ -654,17 +665,17 @@ async function fetchArchiveIntelligenceImsContext(body, supabase) {
   });
 
   const promises = [
-    supabase
+    db
       .from('jobs')
       .select('salary_min,salary_max,posted_date')
       .eq('source', 'IMS')
       .filter('title', 'ilike', `%${term}%`),
-    supabase
+    db
       .from('jobs')
       .select('posted_date')
       .eq('source', 'IMS')
       .ilike('company', `%${companyTerm}%`),
-    supabase
+    db
       .from('jobs')
       .select('title,company,salary_min,salary_max,location,posted_date,source_url')
       .eq('source', 'IMS')
@@ -676,7 +687,7 @@ async function fetchArchiveIntelligenceImsContext(body, supabase) {
 
   if (familyOrClause) {
     promises.push(
-      supabase
+      db
         .from('jobs')
         .select('salary_min,salary_max,posted_date')
         .eq('source', 'IMS')
@@ -732,7 +743,7 @@ async function fetchArchiveIntelligenceImsContext(body, supabase) {
     const kw0 = familyKeywords[0];
     const kw1 = familyKeywords[1];
     const kw2 = familyKeywords[2];
-    const { count: broadCount, error: broadError } = await supabase
+    const { count: broadCount, error: broadError } = await db
       .from('jobs')
       .select('*', { count: 'exact', head: true })
       .filter('title', 'ilike', `%${kw0}%`)
