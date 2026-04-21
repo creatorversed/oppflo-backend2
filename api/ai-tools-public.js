@@ -1150,53 +1150,37 @@ function applyArchiveIntelligencePostProcessing(rawOutput, context) {
     outputLength: out.length,
   });
 
-  // FALLBACK: if Claude dropped the Employer Intelligence section entirely,
-  // inject a hardcoded block immediately before the SECOND-TO-LAST <hr>.
-  // The LAST <hr> is the trailing closer AFTER the Verified stamp, so
-  // anchoring on it would place Employer Intelligence below Verified.
-  // The second-to-last <hr> is the divider that opens the Verified footer,
-  // so injecting before it places Employer Intelligence right where it
-  // belongs — directly above Verified. This is emoji-/phrasing-proof since
-  // we rely on HTML structure rather than heading text.
-  // If only one <hr> exists we still inject before it as a safe degradation;
-  // if none exists, append EMPLOYER_BLOCK to the end so the section is
-  // never silently lost.
-  // Only skip injection when a PROPER h3 heading for Employer Intelligence
-  // is actually rendered. The bare string "Employer Intelligence" can show
-  // up in plain prose, instruction echoes, or comments without producing a
-  // visible section, which previously caused us to skip injection even
-  // though the heading was missing.
-  if (
-    !out.includes('🏢 Employer Intelligence') &&
-    !out.includes('Employer Intelligence</h3>') &&
-    !out.includes('<h3>Employer')
-  ) {
-    const job_title = ctx.job_title || 'this role';
-    const company = ctx.company || 'this company';
-
+  // ALWAYS inject the Employer Intelligence block. The previous guard was
+  // susceptible to false positives (the words "Employer Intelligence" can
+  // show up in prose, instruction echoes, or comments without producing a
+  // visible heading). By injecting unconditionally and then deduplicating
+  // any resulting double heading, we guarantee the section renders exactly
+  // once on every response.
+  //
+  // Injection anchor: the SECOND-TO-LAST <hr>. The last <hr> is the trailing
+  // closer AFTER the Verified stamp; the second-to-last <hr> is the divider
+  // that opens the Verified footer — injecting before it places Employer
+  // Intelligence directly above Verified. If only one <hr> exists we inject
+  // before it as a safe degradation; if none exists, we append to the end
+  // so the section is never silently lost.
+  {
     const EMPLOYER_BLOCK =
       '<hr><br>' +
       '<h3>🏢 Employer Intelligence</h3>' +
       '<p><strong>Competitive context.</strong> ' +
-      'Companies hiring for ' + job_title + ' roles are ' +
-      'actively investing in creator economy talent — ' +
+      'Companies hiring for ' + ctx.job_title + ' roles ' +
+      'are actively investing in creator economy talent — ' +
       'a signal of organizational commitment to building ' +
-      'or scaling creator marketing capabilities. ' +
-      'This role type reflects growing recognition that ' +
-      'creator economy expertise requires dedicated ' +
-      'professionals rather than generalist marketing staff.</p>' +
+      'or scaling creator marketing capabilities.</p>' +
       '<p><strong>Hiring recommendation.</strong> ' +
-      'To attract top ' + job_title + ' candidates, ' +
+      'To attract top ' + ctx.job_title + ' candidates, ' +
       'position the role around creative ownership and ' +
-      'strategic impact rather than execution tasks. ' +
-      'The strongest candidates in this space have options ' +
-      '— they choose companies that give them meaningful ' +
-      'scope and direct access to leadership.</p>' +
+      'strategic impact. The strongest candidates have ' +
+      'options — they choose companies that give them ' +
+      'meaningful scope and direct access to leadership.</p>' +
       '<p><em>Need help building your creator economy team? ' +
-      'Visit <a href="https://www.creatorrecruiting.com" ' +
-      'target="_blank">creatorrecruiting.com</a></em></p>' +
+      'Visit creatorrecruiting.com</em></p>' +
       '<hr><br>';
-    void company;
 
     // Collect every <hr> index, then target the SECOND-TO-LAST one so the
     // block lands just above the Verified footer (not after it).
@@ -1217,6 +1201,39 @@ function applyArchiveIntelligencePostProcessing(rawOutput, context) {
       // Safety fallback: no <hr> in the output at all, so append the block
       // to the end rather than silently dropping Employer Intelligence.
       out = out + EMPLOYER_BLOCK;
+    }
+
+    // Deduplicate: if Claude already emitted a 🏢 Employer Intelligence
+    // heading, the unconditional injection above now produced two of them.
+    // Detect the duplicate (any occurrence beyond the first) and excise the
+    // entire duplicate block from that heading up to — but not including —
+    // the next <hr>, so only one Employer Intelligence section remains.
+    const empHeading = '🏢 Employer Intelligence';
+    const firstEmp = out.indexOf(empHeading);
+    if (firstEmp !== -1) {
+      const secondEmp = out.indexOf(empHeading, firstEmp + empHeading.length);
+      if (secondEmp !== -1) {
+        // Walk back from the second heading to the <h3> opener that owns it.
+        const h3OpenIdx = out.lastIndexOf('<h3', secondEmp);
+        // Walk back one more step to the <hr><br> (or <hr>) that opens the
+        // duplicate section, so we also remove its leading divider.
+        let dupStart = h3OpenIdx !== -1 ? h3OpenIdx : secondEmp;
+        const hrBeforeDup = out.lastIndexOf('<hr', dupStart);
+        if (hrBeforeDup !== -1 && hrBeforeDup > firstEmp) {
+          dupStart = hrBeforeDup;
+        }
+        // Find the next <hr> after the duplicate heading and treat that as
+        // the end of the duplicate section (inclusive of its trailing <br>).
+        const nextHrAfterDup = out.indexOf('<hr', secondEmp);
+        if (nextHrAfterDup !== -1 && dupStart < nextHrAfterDup) {
+          // Advance past "<hr...>" and optional "<br>" so we consume the
+          // full closing divider of the duplicate section.
+          const hrTagEnd = out.indexOf('>', nextHrAfterDup);
+          let dupEnd = hrTagEnd !== -1 ? hrTagEnd + 1 : nextHrAfterDup;
+          if (out.substr(dupEnd, 4).toLowerCase() === '<br>') dupEnd += 4;
+          out = out.slice(0, dupStart) + out.slice(dupEnd);
+        }
+      }
     }
   }
 
