@@ -1151,12 +1151,16 @@ function applyArchiveIntelligencePostProcessing(rawOutput, context) {
   });
 
   // FALLBACK: if Claude dropped the Employer Intelligence section entirely,
-  // inject a hardcoded block immediately before the LAST <hr> in the output.
-  // The final <hr> is always the divider that precedes the Verified footer
-  // (which may carry an emoji prefix like "✅ IMS x CREATORVERSED Verified"),
-  // so anchoring to the last divider makes injection emoji-/phrasing-proof.
-  // If no <hr> exists at all, append EMPLOYER_BLOCK to the end of the output
-  // so the section is never silently lost.
+  // inject a hardcoded block immediately before the SECOND-TO-LAST <hr>.
+  // The LAST <hr> is the trailing closer AFTER the Verified stamp, so
+  // anchoring on it would place Employer Intelligence below Verified.
+  // The second-to-last <hr> is the divider that opens the Verified footer,
+  // so injecting before it places Employer Intelligence right where it
+  // belongs — directly above Verified. This is emoji-/phrasing-proof since
+  // we rely on HTML structure rather than heading text.
+  // If only one <hr> exists we still inject before it as a safe degradation;
+  // if none exists, append EMPLOYER_BLOCK to the end so the section is
+  // never silently lost.
   if (!out.includes('Employer Intelligence')) {
     const job_title = ctx.job_title || 'this role';
     const company = ctx.company || 'this company';
@@ -1185,16 +1189,21 @@ function applyArchiveIntelligencePostProcessing(rawOutput, context) {
       '<hr><br>';
     void company;
 
-    // Find ALL <hr> occurrences and take the last one as the injection point.
+    // Collect every <hr> index, then target the SECOND-TO-LAST one so the
+    // block lands just above the Verified footer (not after it).
     const hrIndices = [];
+    let hrMatch;
     const hrRegex = /<hr\b[^>]*>/gi;
-    let m;
-    while ((m = hrRegex.exec(out)) !== null) {
-      hrIndices.push(m.index);
+    while ((hrMatch = hrRegex.exec(out)) !== null) {
+      hrIndices.push(hrMatch.index);
     }
-    if (hrIndices.length > 0) {
-      const lastHrIdx = hrIndices[hrIndices.length - 1];
-      out = out.substring(0, lastHrIdx) + EMPLOYER_BLOCK + out.substring(lastHrIdx);
+
+    if (hrIndices.length >= 2) {
+      const insertAt = hrIndices[hrIndices.length - 2];
+      out = out.slice(0, insertAt) + EMPLOYER_BLOCK + out.slice(insertAt);
+    } else if (hrIndices.length === 1) {
+      const insertAt = hrIndices[0];
+      out = out.slice(0, insertAt) + EMPLOYER_BLOCK + out.slice(insertAt);
     } else {
       // Safety fallback: no <hr> in the output at all, so append the block
       // to the end rather than silently dropping Employer Intelligence.
