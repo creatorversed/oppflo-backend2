@@ -710,16 +710,60 @@ async function fetchArchiveIntelligenceImsContext(body, supabase) {
         avg_salary_max: null,
       };
 
+  // Query A broad fallback: if the exact ILIKE match returned 0 rows, retry
+  // with a multi-ILIKE AND across the role-family keywords. For
+  // "Influencer Marketing Manager" this becomes title ILIKE '%influencer%'
+  // AND title ILIKE '%marketing%' AND title ILIKE '%manager%' — catching
+  // near-exact titles the substring query missed (e.g. punctuation,
+  // seniority prefixes like "Senior" that break the full-string ILIKE).
+  let exactSignalCountBroad = null;
+  if (queryA.signal_count === 0 && familyKeywords.length > 0) {
+    let broadQuery = supabase
+      .from('jobs')
+      .select('salary_min,salary_max,posted_date')
+      .eq('source', 'IMS');
+    for (const kw of familyKeywords) {
+      broadQuery = broadQuery.ilike('title', `%${kw}%`);
+    }
+    const broadRes = await broadQuery;
+    if (!broadRes.error && Array.isArray(broadRes.data)) {
+      exactSignalCountBroad = broadRes.data.length;
+    }
+  }
+
   // IMPORTANT: exact_signal_count and is_established_title MUST reflect how
   // often the title appears across the ENTIRE IMS archive (all companies).
   // Query A (above) filters only on title — there is deliberately no company
   // filter — so queryA.signal_count is the title-wide count. company-specific
   // counts come from Query B (company_signal_count). Never confuse the two.
+  // is_established_title uses the max of the exact and broad title counts so
+  // a near-miss on the exact ILIKE does not falsely flag an established role
+  // as emerging.
+  const exact_signal_count = queryA.signal_count;
+  const role_family_count = queryRoleFamily.role_family_count;
+  const company_signal_count = queryB.company_signal_count;
+  const effectiveExactCount = Math.max(
+    exact_signal_count || 0,
+    exactSignalCountBroad || 0
+  );
+  const is_established_title = effectiveExactCount >= 10;
+
+  console.log('archive-intelligence-query-debug:', {
+    job_title: body.job_title,
+    exact_signal_count,
+    exact_signal_count_broad: exactSignalCountBroad,
+    role_family_count,
+    company_signal_count,
+    is_established_title,
+    role_family_keywords: familyKeywords,
+  });
+
   const payload = {
-    exact_signal_count: queryA.signal_count, // title-wide, from Query A
-    role_family_count: queryRoleFamily.role_family_count,
-    company_signal_count: queryB.company_signal_count, // company-specific, from Query B
-    is_established_title: queryA.signal_count >= 10, // title-wide threshold
+    exact_signal_count, // title-wide, from Query A
+    exact_signal_count_broad: exactSignalCountBroad, // null unless Query A returned 0
+    role_family_count,
+    company_signal_count, // company-specific, from Query B
+    is_established_title, // title-wide threshold, uses max of exact + broad
     query_a_signal_frequency: queryA,
     query_role_family: queryRoleFamily,
     query_b_company_signals: queryB,
@@ -1071,11 +1115,26 @@ function applyArchiveIntelligencePostProcessing(rawOutput, context) {
   );
   out = out.replace(/\u0000IMSA(\d+)\u0000/g, (_, n) => savedAnchors[Number(n)]);
 
+  // Diagnostic log — fires on every archive-intelligence response so we can
+  // see in Vercel logs whether Claude produced Employer Intelligence and
+  // where the <hr> anchors are for the fallback injector.
+  console.log('archive-post-processing-debug:', {
+    hasEmployerIntelligence: out.includes('Employer Intelligence'),
+    hrCount: (out.match(/<hr/gi) || []).length,
+    lastHrIndex: (() => {
+      const matches = [...out.matchAll(/<hr\b[^>]*>/gi)];
+      return matches.length > 0 ? matches[matches.length - 1].index : -1;
+    })(),
+    outputLength: out.length,
+  });
+
   // FALLBACK: if Claude dropped the Employer Intelligence section entirely,
   // inject a hardcoded block immediately before the LAST <hr> in the output.
   // The final <hr> is always the divider that precedes the Verified footer
   // (which may carry an emoji prefix like "✅ IMS x CREATORVERSED Verified"),
   // so anchoring to the last divider makes injection emoji-/phrasing-proof.
+  // If no <hr> exists at all, append EMPLOYER_BLOCK to the end of the output
+  // so the section is never silently lost.
   if (!out.includes('Employer Intelligence')) {
     const job_title = ctx.job_title || 'this role';
     const company = ctx.company || 'this company';
@@ -1114,6 +1173,10 @@ function applyArchiveIntelligencePostProcessing(rawOutput, context) {
     if (hrIndices.length > 0) {
       const lastHrIdx = hrIndices[hrIndices.length - 1];
       out = out.substring(0, lastHrIdx) + EMPLOYER_BLOCK + out.substring(lastHrIdx);
+    } else {
+      // Safety fallback: no <hr> in the output at all, so append the block
+      // to the end rather than silently dropping Employer Intelligence.
+      out = out + EMPLOYER_BLOCK;
     }
   }
 
