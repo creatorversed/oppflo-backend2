@@ -710,11 +710,16 @@ async function fetchArchiveIntelligenceImsContext(body, supabase) {
         avg_salary_max: null,
       };
 
+  // IMPORTANT: exact_signal_count and is_established_title MUST reflect how
+  // often the title appears across the ENTIRE IMS archive (all companies).
+  // Query A (above) filters only on title — there is deliberately no company
+  // filter — so queryA.signal_count is the title-wide count. company-specific
+  // counts come from Query B (company_signal_count). Never confuse the two.
   const payload = {
-    exact_signal_count: queryA.signal_count,
+    exact_signal_count: queryA.signal_count, // title-wide, from Query A
     role_family_count: queryRoleFamily.role_family_count,
-    company_signal_count: queryB.company_signal_count,
-    is_established_title: queryA.signal_count >= 10,
+    company_signal_count: queryB.company_signal_count, // company-specific, from Query B
+    is_established_title: queryA.signal_count >= 10, // title-wide threshold
     query_a_signal_frequency: queryA,
     query_role_family: queryRoleFamily,
     query_b_company_signals: queryB,
@@ -1067,10 +1072,10 @@ function applyArchiveIntelligencePostProcessing(rawOutput, context) {
   out = out.replace(/\u0000IMSA(\d+)\u0000/g, (_, n) => savedAnchors[Number(n)]);
 
   // FALLBACK: if Claude dropped the Employer Intelligence section entirely,
-  // inject a hardcoded block immediately before the <hr> that precedes the
-  // "IMS x CREATORVERSED Verified" heading. Uses job_title (and captures
-  // company for future use) from the request context so the copy names the
-  // role specifically.
+  // inject a hardcoded block immediately before the LAST <hr> in the output.
+  // The final <hr> is always the divider that precedes the Verified footer
+  // (which may carry an emoji prefix like "✅ IMS x CREATORVERSED Verified"),
+  // so anchoring to the last divider makes injection emoji-/phrasing-proof.
   if (!out.includes('Employer Intelligence')) {
     const job_title = ctx.job_title || 'this role';
     const company = ctx.company || 'this company';
@@ -1099,11 +1104,16 @@ function applyArchiveIntelligencePostProcessing(rawOutput, context) {
       '<hr><br>';
     void company;
 
-    const verifiedIdx = out.indexOf('IMS x CREATORVERSED Verified');
-    if (verifiedIdx !== -1) {
-      const hrIdx = out.lastIndexOf('<hr>', verifiedIdx);
-      const insertAt = hrIdx !== -1 ? hrIdx : verifiedIdx;
-      out = out.substring(0, insertAt) + EMPLOYER_BLOCK + out.substring(insertAt);
+    // Find ALL <hr> occurrences and take the last one as the injection point.
+    const hrIndices = [];
+    const hrRegex = /<hr\b[^>]*>/gi;
+    let m;
+    while ((m = hrRegex.exec(out)) !== null) {
+      hrIndices.push(m.index);
+    }
+    if (hrIndices.length > 0) {
+      const lastHrIdx = hrIndices[hrIndices.length - 1];
+      out = out.substring(0, lastHrIdx) + EMPLOYER_BLOCK + out.substring(lastHrIdx);
     }
   }
 
