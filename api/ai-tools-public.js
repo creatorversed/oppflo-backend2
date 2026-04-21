@@ -644,12 +644,21 @@ async function fetchArchiveIntelligenceImsContext(body, supabase) {
     .map((kw) => `title.ilike.%${kw}%`)
     .join(',');
 
+  // Pre-query log — shows the exact filter strategy being built for this
+  // request BEFORE Supabase executes, so Vercel logs capture the attempt
+  // even if the query errors or times out.
+  console.log('archive-query-attempt:', {
+    keywords: familyKeywords,
+    job_title: body.job_title,
+    queryAMethod: 'filter-ilike',
+  });
+
   const promises = [
     supabase
       .from('jobs')
       .select('salary_min,salary_max,posted_date')
       .eq('source', 'IMS')
-      .ilike('title', `%${term}%`),
+      .filter('title', 'ilike', `%${term}%`),
     supabase
       .from('jobs')
       .select('posted_date')
@@ -660,7 +669,7 @@ async function fetchArchiveIntelligenceImsContext(body, supabase) {
       .select('title,company,salary_min,salary_max,location,posted_date,source_url')
       .eq('source', 'IMS')
       .not('description', 'is', null)
-      .ilike('title', `%${term}%`)
+      .filter('title', 'ilike', `%${term}%`)
       .order('posted_date', { ascending: false })
       .limit(5),
   ];
@@ -711,24 +720,26 @@ async function fetchArchiveIntelligenceImsContext(body, supabase) {
       };
 
   // Query A broad fallback: if the exact ILIKE match returned 0 rows, retry
-  // with a multi-ILIKE AND across the role-family keywords. For
-  // "Influencer Marketing Manager" this becomes title ILIKE '%influencer%'
-  // AND title ILIKE '%marketing%' AND title ILIKE '%manager%' — catching
-  // near-exact titles the substring query missed (e.g. punctuation,
-  // seniority prefixes like "Senior" that break the full-string ILIKE).
+  // with AND-ed .filter('title', 'ilike', ...) calls across the role-family
+  // keywords, using a head-only exact count. Uses .filter() explicitly
+  // (rather than chained .ilike()) to force AND combination semantics in the
+  // PostgREST query. For "Influencer Marketing Manager" this becomes
+  // title ILIKE '%influencer%' AND title ILIKE '%marketing%' AND
+  // title ILIKE '%manager%' AND source = 'IMS'. Missing keyword slots are
+  // filled with the sentinel '%a%' so the chain shape stays constant.
   let exactSignalCountBroad = null;
   if (queryA.signal_count === 0 && familyKeywords.length > 0) {
-    let broadQuery = supabase
+    const kw0 = familyKeywords[0];
+    const kw1 = familyKeywords[1];
+    const kw2 = familyKeywords[2];
+    const { count: broadCount, error: broadError } = await supabase
       .from('jobs')
-      .select('salary_min,salary_max,posted_date')
+      .select('*', { count: 'exact', head: true })
+      .filter('title', 'ilike', `%${kw0}%`)
+      .filter('title', 'ilike', kw1 ? `%${kw1}%` : '%a%')
+      .filter('title', 'ilike', kw2 ? `%${kw2}%` : '%a%')
       .eq('source', 'IMS');
-    for (const kw of familyKeywords) {
-      broadQuery = broadQuery.ilike('title', `%${kw}%`);
-    }
-    const broadRes = await broadQuery;
-    if (!broadRes.error && Array.isArray(broadRes.data)) {
-      exactSignalCountBroad = broadRes.data.length;
-    }
+    exactSignalCountBroad = broadError ? 0 : (broadCount || 0);
   }
 
   // IMPORTANT: exact_signal_count and is_established_title MUST reflect how
