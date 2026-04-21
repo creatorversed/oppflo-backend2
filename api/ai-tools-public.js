@@ -714,6 +714,7 @@ async function fetchArchiveIntelligenceImsContext(body, supabase) {
     exact_signal_count: queryA.signal_count,
     role_family_count: queryRoleFamily.role_family_count,
     company_signal_count: queryB.company_signal_count,
+    is_established_title: queryA.signal_count >= 10,
     query_a_signal_frequency: queryA,
     query_role_family: queryRoleFamily,
     query_b_company_signals: queryB,
@@ -999,9 +1000,10 @@ function replacePhraseBlock(text, needles, replacement) {
   return text;
 }
 
-function applyArchiveIntelligencePostProcessing(rawOutput) {
+function applyArchiveIntelligencePostProcessing(rawOutput, context) {
   if (!rawOutput || typeof rawOutput !== 'string') return rawOutput;
   let out = rawOutput;
+  const ctx = context || {};
 
   const EMPLOYER_CTA = '<p><em>Need help building your creator economy team? Visit <a href="https://www.creatorrecruiting.com" target="_blank">creatorrecruiting.com</a></em></p>';
 
@@ -1063,6 +1065,47 @@ function applyArchiveIntelligencePostProcessing(rawOutput) {
     '<a href="https://www.influencermarketingsociety.com" target="_blank">influencermarketingsociety.com</a>'
   );
   out = out.replace(/\u0000IMSA(\d+)\u0000/g, (_, n) => savedAnchors[Number(n)]);
+
+  // FALLBACK: if Claude dropped the Employer Intelligence section entirely,
+  // inject a hardcoded block immediately before the <hr> that precedes the
+  // "IMS x CREATORVERSED Verified" heading. Uses job_title (and captures
+  // company for future use) from the request context so the copy names the
+  // role specifically.
+  if (!out.includes('Employer Intelligence')) {
+    const job_title = ctx.job_title || 'this role';
+    const company = ctx.company || 'this company';
+
+    const EMPLOYER_BLOCK =
+      '<hr><br>' +
+      '<h3>🏢 Employer Intelligence</h3>' +
+      '<p><strong>Competitive context.</strong> ' +
+      'Companies hiring for ' + job_title + ' roles are ' +
+      'actively investing in creator economy talent — ' +
+      'a signal of organizational commitment to building ' +
+      'or scaling creator marketing capabilities. ' +
+      'This role type reflects growing recognition that ' +
+      'creator economy expertise requires dedicated ' +
+      'professionals rather than generalist marketing staff.</p>' +
+      '<p><strong>Hiring recommendation.</strong> ' +
+      'To attract top ' + job_title + ' candidates, ' +
+      'position the role around creative ownership and ' +
+      'strategic impact rather than execution tasks. ' +
+      'The strongest candidates in this space have options ' +
+      '— they choose companies that give them meaningful ' +
+      'scope and direct access to leadership.</p>' +
+      '<p><em>Need help building your creator economy team? ' +
+      'Visit <a href="https://www.creatorrecruiting.com" ' +
+      'target="_blank">creatorrecruiting.com</a></em></p>' +
+      '<hr><br>';
+    void company;
+
+    const verifiedIdx = out.indexOf('IMS x CREATORVERSED Verified');
+    if (verifiedIdx !== -1) {
+      const hrIdx = out.lastIndexOf('<hr>', verifiedIdx);
+      const insertAt = hrIdx !== -1 ? hrIdx : verifiedIdx;
+      out = out.substring(0, insertAt) + EMPLOYER_BLOCK + out.substring(insertAt);
+    }
+  }
 
   return out;
 }
@@ -1169,10 +1212,14 @@ module.exports = async (req, res) => {
 
     // Scoped post-processing: archive-intelligence only. Hardcodes the three
     // critical links so they always render as clickable anchors regardless of
-    // Claude's phrasing. No other tool output is modified.
+    // Claude's phrasing, and injects a hardcoded Employer Intelligence block
+    // if the model dropped that section. No other tool output is modified.
     const finalOutput =
       toolName === 'archive-intelligence'
-        ? applyArchiveIntelligencePostProcessing(output)
+        ? applyArchiveIntelligencePostProcessing(output, {
+            job_title: body.job_title || '',
+            company: body.company || '',
+          })
         : output;
 
     recordRequest(ip);
