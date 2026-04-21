@@ -1203,6 +1203,19 @@ function applyArchiveIntelligencePostProcessing(rawOutput, context) {
       out = out + EMPLOYER_BLOCK;
     }
 
+    console.log('employer-injection-debug:', {
+      injected: true,
+      hrIndicesCount: hrIndices.length,
+      insertedAt:
+        hrIndices.length >= 2
+          ? hrIndices[hrIndices.length - 2]
+          : hrIndices.length === 1
+          ? hrIndices[0]
+          : -1,
+      containsEmployerAfterInject: out.includes('🏢 Employer Intelligence'),
+      employerCountAfterInject: (out.match(/🏢 Employer Intelligence/g) || []).length,
+    });
+
     // Deduplicate: if Claude already emitted a 🏢 Employer Intelligence
     // heading, the unconditional injection above now produced two of them.
     // Detect the duplicate (any occurrence beyond the first) and excise the
