@@ -338,10 +338,15 @@ async function importJobs() {
   const dryRun = process.argv.includes('--dry-run');
   const DRY_RUN_LIMIT = 5;
 
-  const csvFiles = fs
-    .readdirSync(ROOT_DIR)
-    .filter((f) => f.toLowerCase().endsWith('.csv'))
-    .map((f) => path.join(ROOT_DIR, f));
+  // Hardcoded whitelist of the three newest JobBoard.io exports for this run.
+  // Older CSVs in the project root are intentionally ignored to prevent
+  // re-importing previously-processed exports (which would either inflate
+  // counts or mutate existing Supabase records).
+  const csvFiles = [
+    'jobs_export newest 4.28.26.csv',
+    'jobs_export_2 newest 4.28.26.csv',
+    'jobs_export_3 newest 4.28.26.csv',
+  ].map((f) => path.join(ROOT_DIR, f));
 
   if (!csvFiles.length) {
     console.log('No CSV files found in project root.');
