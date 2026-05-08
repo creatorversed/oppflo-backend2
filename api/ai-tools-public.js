@@ -167,6 +167,7 @@ function getPublicOutputMaxTokens(toolName) {
   if (toolName === 'archive-intelligence') return 2000;
   if (toolName === 'opportunity-description-generator') return 2500;
   if (toolName === 'bio-generator') return PUBLIC_LONG_FORM_MAX_TOKENS;
+  if (toolName === 'cv-bio-builder') return PUBLIC_LONG_FORM_MAX_TOKENS;
   if (LONG_FORM_TOOLS.has(toolName)) return PUBLIC_LONG_FORM_MAX_TOKENS;
   return PUBLIC_DEFAULT_MAX_TOKENS;
 }
@@ -382,6 +383,13 @@ ${TONE_INSTRUCTIONS}`,
 
 ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
+  },
+  'cv-bio-builder': {
+    maxTokens: MAX_TOKENS_CTX,
+    required: [],
+    system: `You are an expert personal brand strategist specializing in the creator economy. You have deep knowledge of how brands, agencies, and platforms in the creator space evaluate talent — what language resonates, what titles carry weight, and what positioning commands premium rates. Generate 3 distinct bio variations optimized for the specified platform. Label each clearly as Version 1, Version 2, and Version 3. Write in first person. Never use filler phrases like passionate about or results-driven. Make each version distinct — one leading with authority, one leading with results, one leading with personality.`,
+    buildUser: (b) =>
+      `Write 3 bio variations for ${b.name}, a ${b.role} in the ${b.industry} space. Platform: ${b.platform}. Tone: ${b.tone}. Length: ${b.length}. Key achievements: ${b.achievements}. Personal touch to include: ${b.personal_touch}. Make each version distinct in approach while maintaining the same core facts.`,
   },
   'value-proposition': {
     maxTokens: MAX_TOKENS_CTX,
