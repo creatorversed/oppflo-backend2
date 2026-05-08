@@ -489,6 +489,12 @@ ${TONE_INSTRUCTIONS}`,
 ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
+  'bio-generator': {
+    maxTokens: 1000,
+    required: [],
+    system: `You are an expert personal brand strategist and copywriter specializing in the creator economy. Generate 3 compelling bio variations optimized for the specified platform. Each bio should match the requested length and tone exactly, highlight the creator's unique value proposition, and use positioning language that resonates in the creator economy space. Write in first person. Never use generic filler phrases. Focus on real achievements, specific outcomes, and authentic voice. Format your response clearly labeling each variation as Version 1, Version 2, and Version 3.`,
+    buildUser: (b) => `Write 3 bio variations for ${b.name}, a ${b.role} in the ${b.industry} space. Platform: ${b.platform}. Tone: ${b.tone}. Length: ${b.length}. Key achievements: ${b.achievements}. Personal touch to include: ${b.personal_touch}. Make each version distinct in approach while maintaining the same core facts.`,
+  },
 };
 TOOL_CONFIG['company-culture-decoder'] = TOOL_CONFIG['culture-decoder'];
 
