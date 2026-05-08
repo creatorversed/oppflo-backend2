@@ -91,6 +91,69 @@ function extractRoleFamilyKeywords(rawTitle) {
   return unique;
 }
 
+const BIO_BENCHMARK_API_URL = 'https://oppflo-backend2.vercel.app/api/benchmark';
+
+function benchmarkSkillsFromTitles(sampleTitles, limit = 8) {
+  const freq = {};
+  for (const t of sampleTitles || []) {
+    for (let raw of String(t).toLowerCase().split(/[\s,/\-]+/)) {
+      raw = raw.replace(/[^a-z0-9+]/g, '');
+      if (!raw || raw.length < 3 || ROLE_FAMILY_STOPWORDS.has(raw)) continue;
+      freq[raw] = (freq[raw] || 0) + 1;
+    }
+  }
+  const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+  const top = sorted.slice(0, limit).map(([w]) => w.charAt(0).toUpperCase() + w.slice(1));
+  return top.filter(Boolean).join(', ');
+}
+
+function formatUsdRange(min, max) {
+  const a = typeof min === 'number' ? min : min != null ? Number(min) : NaN;
+  const b = typeof max === 'number' ? max : max != null ? Number(max) : NaN;
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return '';
+  const fmt = (n) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  return `$${fmt(a)}–$${fmt(b)}`;
+}
+
+async function fetchCreatorEconomyBenchmarkForRole(role) {
+  const title = typeof role === 'string' ? role.trim() : '';
+  const toolsKey = process.env.PUBLIC_TOOLS_KEY;
+  if (!title || !toolsKey) return '';
+
+  const url = `${BIO_BENCHMARK_API_URL}?title=${encodeURIComponent(title)}`;
+  const opts = { headers: { Authorization: `Bearer ${toolsKey}` } };
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    opts.signal = AbortSignal.timeout(12000);
+  }
+
+  try {
+    const res = await fetch(url, opts);
+    if (!res.ok) return '';
+    const json = await res.json();
+    const count = Number(json.count);
+    if (!Number.isFinite(count) || count <= 0) return '';
+
+    const titles = Array.isArray(json.sample_titles) ? json.sample_titles.map((x) => String(x).trim()).filter(Boolean) : [];
+    const titlesPhrase = titles.length ? titles.slice(0, 12).join(', ') : '';
+    let skillsPhrase = benchmarkSkillsFromTitles(titles.length ? titles : [title]);
+
+    const rangePhrase =
+      formatUsdRange(json.avg_min, json.avg_max) ||
+      formatUsdRange(json.median_min, json.median_max) ||
+      formatUsdRange(json.low_end, json.high_end);
+    if (!titlesPhrase || !rangePhrase) return '';
+    if (!skillsPhrase) {
+      const kw = extractRoleFamilyKeywords(title);
+      skillsPhrase = kw.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(', ') || title;
+    }
+    if (!skillsPhrase) return '';
+
+    return ` Creator economy context for this role: typical titles include ${titlesPhrase}, in-demand skills include ${skillsPhrase}, average compensation range is ${rangePhrase}. Use this context to inform positioning language.`;
+  } catch {
+    return '';
+  }
+}
+
 function buildUserContext(b) {
   const entries = Object.entries(b)
     .filter(([k]) => k !== 'tool')
@@ -103,6 +166,7 @@ function getPublicOutputMaxTokens(toolName) {
   if (toolName === 'content-repurpose') return PUBLIC_CONTENT_REPURPOSE_MAX_TOKENS;
   if (toolName === 'archive-intelligence') return 2000;
   if (toolName === 'opportunity-description-generator') return 2500;
+  if (toolName === 'bio-generator') return PUBLIC_LONG_FORM_MAX_TOKENS;
   if (LONG_FORM_TOOLS.has(toolName)) return PUBLIC_LONG_FORM_MAX_TOKENS;
   return PUBLIC_DEFAULT_MAX_TOKENS;
 }
@@ -492,10 +556,12 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'bio-generator': {
-    maxTokens: 1000,
+    maxTokens: 1500,
     required: [],
-    system: `You are an expert personal brand strategist and copywriter specializing in the creator economy. Generate 3 compelling bio variations optimized for the specified platform. Each bio should match the requested length and tone exactly, highlight the creator's unique value proposition, and use positioning language that resonates in the creator economy space. Write in first person. Never use generic filler phrases. Focus on real achievements, specific outcomes, and authentic voice. Format your response clearly labeling each variation as Version 1, Version 2, and Version 3.`,
-    buildUser: (b) => `Write 3 bio variations for ${b.name}, a ${b.role} in the ${b.industry} space. Platform: ${b.platform}. Tone: ${b.tone}. Length: ${b.length}. Key achievements: ${b.achievements}. Personal touch to include: ${b.personal_touch}. Make each version distinct in approach while maintaining the same core facts.`,
+    system:
+      `You are an expert personal brand strategist specializing in the creator economy. You have deep knowledge of how brands, agencies, and platforms in the creator space evaluate talent — what language resonates, what titles carry weight, and what positioning commands premium rates. Generate 3 distinct bio variations optimized for the specified platform. Each bio should: match the requested length and tone exactly, use positioning language that hiring managers and brand partners in the creator economy actually respond to, highlight achievements with specific outcomes over generic descriptions, incorporate relevant creator economy keywords naturally, and feel authentic rather than corporate. Label each variation clearly as Version 1, Version 2, and Version 3. Write in first person. Never use filler phrases like passionate about or results-driven. If benchmark data is provided in the context, use the industry titles, skill terminology, and positioning language from that data to make the bio feel insider and credible.`,
+    buildUser: (b, benchmarkContext = '') =>
+      `Write 3 bio variations for ${b.name}, a ${b.role} in the ${b.industry} space. Platform: ${b.platform}. Tone: ${b.tone}. Length: ${b.length}. Key achievements: ${b.achievements}. Personal touch: ${b.personal_touch}.${benchmarkContext} Make each version distinct — one leading with authority, one leading with results, one leading with personality.`,
   },
 };
 TOOL_CONFIG['company-culture-decoder'] = TOOL_CONFIG['culture-decoder'];
@@ -1365,19 +1431,27 @@ module.exports = async (req, res) => {
   const supabaseKey = process.env.SUPABASE_KEY;
   const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
+  const [[imsArchiveContext, dataContext], benchmarkContextForBio] = await Promise.all([
+    Promise.all([
+      fetchImsArchiveSystemContext(toolName, body, supabase),
+      fetchToolDataContext(toolName, body, supabase),
+    ]),
+    toolName === 'bio-generator'
+      ? fetchCreatorEconomyBenchmarkForRole(body.role)
+      : Promise.resolve(''),
+  ]);
+
   let userMessage;
   try {
-    userMessage = config.buildUser(body);
+    userMessage =
+      toolName === 'bio-generator'
+        ? config.buildUser(body, benchmarkContextForBio)
+        : config.buildUser(body);
   } catch (e) {
     res.setHeader('Content-Type', 'application/json');
     res.status(400).json({ error: 'Invalid input', details: e.message });
     return;
   }
-
-  const [imsArchiveContext, dataContext] = await Promise.all([
-    fetchImsArchiveSystemContext(toolName, body, supabase),
-    fetchToolDataContext(toolName, body, supabase),
-  ]);
 
   let systemPrompt = config.system;
   if (imsArchiveContext) {
