@@ -14,7 +14,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { verifyToken } = require('../lib/auth');
 const { TONE_INSTRUCTIONS, DB_DATA_CONTEXT_PREFIX } = require('../lib/ai-tools-prompts');
 
-const MODEL = 'claude-sonnet-4-20250514';
+const MODEL = 'claude-sonnet-4-6';
 const LIMITS = { free: 5, pro: 50, mogul: Infinity };
 const MAX_TOKENS_CTX = 1000; // default max_tokens for all tools except long-form list below
 const MAX_TOKENS_LONG_FORM = 1500; // interview-prep, blog-outline, podcast-planner, etc.

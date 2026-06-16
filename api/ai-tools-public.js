@@ -18,7 +18,7 @@ const {
   OPPORTUNITY_DESCRIPTION_GENERATOR_SYSTEM,
 } = require('../lib/ai-tools-panel-prompts');
 
-const MODEL = 'claude-sonnet-4-20250514';
+const MODEL = 'claude-sonnet-4-6';
 const PUBLIC_RATE_LIMIT_PER_DAY = 50;
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_TOKENS_CTX = 1500;
