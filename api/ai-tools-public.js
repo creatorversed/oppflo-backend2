@@ -508,7 +508,7 @@ ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'career-quiz': {
-    maxTokens: 2000,
+    maxTokens: 2500,
     required: [],
     system: `You are a creator economy career advisor with access to data from 22,000+ creator economy job posts collected by CreatorVersed/Influencer Marketing Society since 2016. Based on the user quiz answers, recommend their top 3 career paths using REAL job titles that actually exist in the creator economy. Provide salary ranges based on your job data, skills gap analysis, career progression paths, current demand levels, and personalized action plans. Be specific — use actual role titles like Social Media Manager, Creator Partnerships Director, Influencer Marketing Coordinator, Content Strategist, etc. that appear in real job postings. Include match percentages based on their skills and preferences.
 
