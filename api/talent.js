@@ -275,6 +275,39 @@ async function handleResumeUrl(req, res, supabase) {
   res.status(200).json({ success: true, signedUrl: data?.signedUrl || null });
 }
 
+async function handleStudySubmit(req, res, supabase) {
+  let body;
+  try {
+    body = await parseJsonBody(req);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+    return;
+  }
+
+  try {
+    const insertPayload = {
+      first_name: body.first_name || null,
+      last_name: body.last_name || null,
+      tiktok_handle: body.tiktok_handle || null,
+      payout_email: body.payout_email || null,
+      posts_political: body.posts_political || null,
+      post_frequency: body.post_frequency || null,
+      monetized: body.monetized || null,
+      source: body.source || null,
+    };
+
+    const { error: insertError } = await supabase.from('creator_study').insert(insertPayload);
+    if (insertError) {
+      res.status(500).json({ error: 'Failed to save creator study response.', details: insertError.message });
+      return;
+    }
+
+    res.status(200).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Submission failed.', details: err?.message || String(err) });
+  }
+}
+
 module.exports = async (req, res) => {
   setCors(res);
   res.setHeader('Content-Type', 'application/json');
@@ -286,7 +319,7 @@ module.exports = async (req, res) => {
 
   const action = getAction(req);
   if (!action) {
-    res.status(400).json({ error: 'Missing action query param. Use ?action=submit|list|update-status|update-notes|resume-url' });
+    res.status(400).json({ error: 'Missing action query param. Use ?action=submit|study-submit|list|update-status|update-notes|resume-url' });
     return;
   }
 
@@ -313,6 +346,15 @@ module.exports = async (req, res) => {
       return;
     }
     await handleSubmit(req, res, supabase);
+    return;
+  }
+
+  if (action === 'study-submit') {
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed for study-submit. Use POST.' });
+      return;
+    }
+    await handleStudySubmit(req, res, supabase);
     return;
   }
 

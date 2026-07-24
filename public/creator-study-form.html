@@ -10,7 +10,7 @@
   SETUP — TWO THINGS TO FILL IN BEFORE GOING LIVE
   ============================================================
   1) BACKEND_URL (bottom of file, in CONFIG) — the Vercel backend that
-     saves applications to Supabase via /api/study?action=submit.
+     saves applications to Supabase via /api/talent?action=study-submit.
   2) SURVEY_URL (in CONFIG) — the MIT link. Already set.
 
   LINKS: CreatorVersed currently points to creatorversed.com. Once the
@@ -461,7 +461,7 @@
     };
 
     try {
-      const response = await fetch(`${CONFIG.BACKEND_URL}/api/study?action=submit`, {
+      const response = await fetch(`${CONFIG.BACKEND_URL}/api/talent?action=study-submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
