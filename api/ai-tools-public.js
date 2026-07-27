@@ -10,8 +10,10 @@
  * opportunity-description-generator, and others below.
  */
 
+const crypto = require('crypto');
 const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
+const { makeProToken, verifyProToken, getProTokenFromReq } = require('../lib/pro-token');
 const { TONE_INSTRUCTIONS, DB_DATA_CONTEXT_PREFIX } = require('../lib/ai-tools-prompts');
 const {
   ARCHIVE_INTELLIGENCE_SYSTEM,
@@ -20,6 +22,8 @@ const {
 
 const MODEL = 'claude-sonnet-4-6';
 const PUBLIC_RATE_LIMIT_PER_DAY = 50;
+// Server-side free-tier daily cap (Supabase tool_usage). PRO tokens bypass this.
+const FREE_DAILY_LIMIT = 3;
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_TOKENS_CTX = 1500;
 const PUBLIC_DEFAULT_MAX_TOKENS = 1000;
@@ -618,6 +622,56 @@ function validateApiKey(req) {
   const key = process.env.PUBLIC_TOOLS_KEY;
   if (!key) return false;
   return parts[1] === key;
+}
+
+// Service-role Supabase client for tier tables (tool_usage, paid_subscribers).
+// Uses SUPABASE_SERVICE_KEY so it bypasses RLS. Returns null if unconfigured.
+function getServiceClient() {
+  const url = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_KEY;
+  return url && serviceKey ? createClient(url, serviceKey) : null;
+}
+
+function currentUsageDate() {
+  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+}
+
+// Stable per-client identifier for the free-tier daily counter.
+// SHA256(clientIp + "|" + deviceId). With no device id this is effectively
+// ip-only (clientIp + "|" + "").
+function makeUsageIdentifier(clientIp, deviceId) {
+  const base = `${clientIp || ''}|${String(deviceId || '')}`;
+  return crypto.createHash('sha256').update(base).digest('hex');
+}
+
+async function getDailyUsageCount(db, identifier, usageDate) {
+  if (!db) return 0;
+  try {
+    const { data, error } = await db
+      .from('tool_usage')
+      .select('count')
+      .eq('identifier', identifier)
+      .eq('usage_date', usageDate)
+      .maybeSingle();
+    if (error || !data) return 0;
+    return Number(data.count) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function incrementDailyUsage(db, identifier, usageDate, currentCount) {
+  if (!db) return;
+  try {
+    await db
+      .from('tool_usage')
+      .upsert(
+        { identifier, usage_date: usageDate, count: currentCount + 1 },
+        { onConflict: 'identifier,usage_date' }
+      );
+  } catch {
+    // Best-effort: never fail a successful AI response on a usage write error.
+  }
 }
 
 function firstNonEmpty(...values) {
@@ -1396,14 +1450,45 @@ module.exports = async (req, res) => {
   }
 
   const ip = getClientIp(req);
-  const { allowed, remaining } = checkRateLimit(ip);
-  if (!allowed) {
-    res.setHeader('Content-Type', 'application/json');
-    res.status(429).json({
-      error: 'Rate limit exceeded',
-      detail: `${PUBLIC_RATE_LIMIT_PER_DAY} requests per day per IP for anonymous use.`,
-    });
-    return;
+
+  // ── Server-side tier enforcement ──────────────────────────────────────────
+  // A valid signed PRO token (x-pro-token header or cv_pro cookie) grants
+  // unlimited use and skips ALL rate limiting. Everyone else is "free" and is
+  // capped at FREE_DAILY_LIMIT/day via the Supabase tool_usage table, with the
+  // legacy in-memory 50/day/IP counter kept as a secondary backstop.
+  const proTokenValue = getProTokenFromReq(req);
+  const isPro = proTokenValue ? verifyProToken(proTokenValue) : false;
+  const tier = isPro ? 'pro' : 'free';
+
+  const usageDb = getServiceClient();
+  const usageIdentifier = makeUsageIdentifier(ip, req.headers['x-device-id']);
+  const usageDate = currentUsageDate();
+  let freeUsageCount = 0;
+
+  if (!isPro) {
+    // Secondary backstop (free tier only): legacy in-memory per-IP counter.
+    const { allowed } = checkRateLimit(ip);
+    if (!allowed) {
+      res.setHeader('Content-Type', 'application/json');
+      res.status(429).json({
+        error: 'Rate limit exceeded',
+        detail: `${PUBLIC_RATE_LIMIT_PER_DAY} requests per day per IP for anonymous use.`,
+      });
+      return;
+    }
+
+    // Primary free-tier limit: Supabase-backed daily count.
+    freeUsageCount = await getDailyUsageCount(usageDb, usageIdentifier, usageDate);
+    if (freeUsageCount >= FREE_DAILY_LIMIT) {
+      res.setHeader('Content-Type', 'application/json');
+      res.status(429).json({
+        error: 'limit_reached',
+        tier: 'free',
+        message: `You've used your ${FREE_DAILY_LIMIT} free uses for today.`,
+        limit: FREE_DAILY_LIMIT,
+      });
+      return;
+    }
   }
 
   const body = parseBody(req);
@@ -1498,14 +1583,23 @@ module.exports = async (req, res) => {
           })
         : output;
 
-    recordRequest(ip);
-
-    res.setHeader('Content-Type', 'application/json');
-    res.status(200).json({
+    const responsePayload = {
       result: finalOutput,
       tool: toolName,
       usage: { input_tokens: inputTokens, output_tokens: outputTokens, total: totalTokens },
-    });
+      tier,
+    };
+
+    if (!isPro) {
+      // Only a successful AI response counts against the free daily limit.
+      recordRequest(ip);
+      await incrementDailyUsage(usageDb, usageIdentifier, usageDate, freeUsageCount);
+      const newCount = freeUsageCount + 1;
+      responsePayload.remaining = Math.max(0, FREE_DAILY_LIMIT - newCount);
+    }
+
+    res.setHeader('Content-Type', 'application/json');
+    res.status(200).json(responsePayload);
   } catch (err) {
     const isRateLimit = err?.status === 429 || err?.message?.toLowerCase?.().includes('rate');
     res.setHeader('Content-Type', 'application/json');
@@ -1515,3 +1609,8 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+// Re-exported for reuse by api/unlock.js and api/verify-subscriber.js.
+module.exports.makeProToken = makeProToken;
+module.exports.verifyProToken = verifyProToken;
+module.exports.getProTokenFromReq = getProTokenFromReq;
