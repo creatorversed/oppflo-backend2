@@ -15,8 +15,10 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
 const {
   makeProToken,
-  verifyProToken,
+  makeFreeToken,
+  verifyToken,
   getProTokenFromReq,
+  getFreeTokenFromReq,
   buildProCookie,
   constantTimeEquals,
 } = require('../lib/pro-token');
@@ -28,8 +30,9 @@ const {
 
 const MODEL = 'claude-sonnet-4-6';
 const PUBLIC_RATE_LIMIT_PER_DAY = 50;
-// Server-side free-tier daily cap (Supabase tool_usage). PRO tokens bypass this.
-const FREE_DAILY_LIMIT = 3;
+// Server-side daily caps (Supabase tool_usage). PRO tokens bypass all limits.
+const FREE_DAILY_LIMIT = 3; // anonymous tier
+const FREE_PLUS_DAILY_LIMIT = 7; // email-captured "free-plus" tier
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_TOKENS_CTX = 1500;
 const PUBLIC_DEFAULT_MAX_TOKENS = 1000;
@@ -1447,14 +1450,70 @@ function getAction(req) {
   return String(a || '').toLowerCase().trim();
 }
 
-// CORS for the unlock/verify actions (mirrors the former standalone endpoints).
+// CORS for the unlock/verify/register-email actions.
 function setActionCors(req, res) {
   const origin = req.headers?.origin;
   res.setHeader('Access-Control-Allow-Origin', origin || '*');
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-pro-token, x-device-id');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-pro-token, x-free-token, x-device-id');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
+}
+
+function isBasicEmail(email) {
+  return typeof email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+// POST /api/ai-tools-public?action=register-email — { email } -> captures the
+// email as a lead in free_subscribers and issues a free-plus token (7/day).
+async function handleRegisterEmailAction(req, res) {
+  const body = parseBody(req);
+  const email = String(body?.email || '').trim().toLowerCase();
+  if (!isBasicEmail(email)) {
+    res.status(400).json({ success: false, error: 'invalid_email' });
+    return;
+  }
+
+  const db = getServiceClient();
+  if (!db) {
+    res.status(500).json({ success: false, error: 'server_misconfigured' });
+    return;
+  }
+
+  // Upsert the lead: first insert seeds counters; repeat visits bump last_seen
+  // and unlock_count. Best-effort — a capture error still issues the token.
+  try {
+    const nowIso = new Date().toISOString();
+    const { data: existing } = await db
+      .from('free_subscribers')
+      .select('unlock_count')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (existing) {
+      await db
+        .from('free_subscribers')
+        .update({ last_seen: nowIso, unlock_count: (Number(existing.unlock_count) || 0) + 1 })
+        .eq('email', email);
+    } else {
+      await db
+        .from('free_subscribers')
+        .insert({ email, first_seen: nowIso, last_seen: nowIso, unlock_count: 1 });
+    }
+  } catch {
+    // Never block the free-plus token on a lead-capture write error.
+  }
+
+  let token;
+  try {
+    token = makeFreeToken();
+  } catch {
+    res.status(500).json({ success: false, error: 'server_misconfigured' });
+    return;
+  }
+
+  res.setHeader('Set-Cookie', buildProCookie(token));
+  res.status(200).json({ success: true, token, tier: 'free-plus' });
 }
 
 // POST /api/ai-tools-public?action=unlock  — { code } -> PRO token + cv_pro cookie.
@@ -1540,7 +1599,7 @@ module.exports = async (req, res) => {
   // Query-routed PRO endpoints, folded into this function to avoid adding new
   // serverless functions. Preserves the exact request/response shapes, token
   // minting, and cookies of the former api/unlock.js + api/verify-subscriber.js.
-  if (action === 'unlock' || action === 'verify') {
+  if (action === 'unlock' || action === 'verify' || action === 'register-email') {
     setActionCors(req, res);
     if (req.method === 'OPTIONS') {
       res.status(204).end();
@@ -1553,8 +1612,10 @@ module.exports = async (req, res) => {
     }
     if (action === 'unlock') {
       await handleUnlockAction(req, res);
-    } else {
+    } else if (action === 'verify') {
       await handleVerifyAction(req, res);
+    } else {
+      await handleRegisterEmailAction(req, res);
     }
     return;
   }
@@ -1577,14 +1638,28 @@ module.exports = async (req, res) => {
 
   const ip = getClientIp(req);
 
-  // ── Server-side tier enforcement ──────────────────────────────────────────
-  // A valid signed PRO token (x-pro-token header or cv_pro cookie) grants
-  // unlimited use and skips ALL rate limiting. Everyone else is "free" and is
-  // capped at FREE_DAILY_LIMIT/day via the Supabase tool_usage table, with the
-  // legacy in-memory 50/day/IP counter kept as a secondary backstop.
-  const proTokenValue = getProTokenFromReq(req);
-  const isPro = proTokenValue ? verifyProToken(proTokenValue) : false;
-  const tier = isPro ? 'pro' : 'free';
+  // ── Server-side tier enforcement (3 tiers) ────────────────────────────────
+  // Tier is resolved by priority from the signed tokens carried in headers
+  // (x-pro-token / x-free-token) or the cv_pro cookie:
+  //   1. valid "pro" token       → unlimited, skip ALL rate limiting.
+  //   2. valid "free-plus" token → FREE_PLUS_DAILY_LIMIT/day (7).
+  //   3. otherwise "free"        → FREE_DAILY_LIMIT/day (3, anonymous).
+  // Non-pro tiers are enforced via the Supabase tool_usage table (same
+  // identifier logic), with the legacy in-memory 50/day/IP counter as backstop.
+  const tokenChecks = [
+    verifyToken(getProTokenFromReq(req)),
+    verifyToken(getFreeTokenFromReq(req)),
+  ];
+  let tier = 'free';
+  if (tokenChecks.some((r) => r.valid && r.tier === 'pro')) {
+    tier = 'pro';
+  } else if (tokenChecks.some((r) => r.valid && r.tier === 'free-plus')) {
+    tier = 'free-plus';
+  }
+
+  const isPro = tier === 'pro';
+  const dailyLimit = tier === 'free-plus' ? FREE_PLUS_DAILY_LIMIT : FREE_DAILY_LIMIT;
+  const nextTier = tier === 'free-plus' ? 'pro' : 'free-plus';
 
   const usageDb = getServiceClient();
   const usageIdentifier = makeUsageIdentifier(ip, req.headers['x-device-id']);
@@ -1592,7 +1667,7 @@ module.exports = async (req, res) => {
   let freeUsageCount = 0;
 
   if (!isPro) {
-    // Secondary backstop (free tier only): legacy in-memory per-IP counter.
+    // Secondary backstop (non-pro tiers): legacy in-memory per-IP counter.
     const { allowed } = checkRateLimit(ip);
     if (!allowed) {
       res.setHeader('Content-Type', 'application/json');
@@ -1603,15 +1678,16 @@ module.exports = async (req, res) => {
       return;
     }
 
-    // Primary free-tier limit: Supabase-backed daily count.
+    // Primary per-tier limit: Supabase-backed daily count.
     freeUsageCount = await getDailyUsageCount(usageDb, usageIdentifier, usageDate);
-    if (freeUsageCount >= FREE_DAILY_LIMIT) {
+    if (freeUsageCount >= dailyLimit) {
       res.setHeader('Content-Type', 'application/json');
       res.status(429).json({
         error: 'limit_reached',
-        tier: 'free',
-        message: `You've used your ${FREE_DAILY_LIMIT} free uses for today.`,
-        limit: FREE_DAILY_LIMIT,
+        tier,
+        message: `You've used your ${dailyLimit} ${tier === 'free-plus' ? 'free-plus' : 'free'} uses for today.`,
+        limit: dailyLimit,
+        next_tier: nextTier,
       });
       return;
     }
@@ -1717,11 +1793,11 @@ module.exports = async (req, res) => {
     };
 
     if (!isPro) {
-      // Only a successful AI response counts against the free daily limit.
+      // Only a successful AI response counts against the per-tier daily limit.
       recordRequest(ip);
       await incrementDailyUsage(usageDb, usageIdentifier, usageDate, freeUsageCount);
       const newCount = freeUsageCount + 1;
-      responsePayload.remaining = Math.max(0, FREE_DAILY_LIMIT - newCount);
+      responsePayload.remaining = Math.max(0, dailyLimit - newCount);
     }
 
     res.setHeader('Content-Type', 'application/json');
