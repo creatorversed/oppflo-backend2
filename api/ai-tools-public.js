@@ -13,7 +13,13 @@
 const crypto = require('crypto');
 const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
-const { makeProToken, verifyProToken, getProTokenFromReq } = require('../lib/pro-token');
+const {
+  makeProToken,
+  verifyProToken,
+  getProTokenFromReq,
+  buildProCookie,
+  constantTimeEquals,
+} = require('../lib/pro-token');
 const { TONE_INSTRUCTIONS, DB_DATA_CONTEXT_PREFIX } = require('../lib/ai-tools-prompts');
 const {
   ARCHIVE_INTELLIGENCE_SYSTEM,
@@ -1432,7 +1438,127 @@ function applyArchiveIntelligencePostProcessing(rawOutput, context) {
   return out;
 }
 
+// Query-routed action off this same serverless function (keeps us under
+// Vercel's function limit). ?action=unlock and ?action=verify are handled here;
+// everything else (no action, or action=tool) falls through to the AI tools.
+function getAction(req) {
+  const val = req.query?.action;
+  const a = Array.isArray(val) ? val[0] : val;
+  return String(a || '').toLowerCase().trim();
+}
+
+// CORS for the unlock/verify actions (mirrors the former standalone endpoints).
+function setActionCors(req, res) {
+  const origin = req.headers?.origin;
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-pro-token, x-device-id');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+}
+
+// POST /api/ai-tools-public?action=unlock  — { code } -> PRO token + cv_pro cookie.
+async function handleUnlockAction(req, res) {
+  const expected = process.env.UNLOCK_CODE;
+  if (!expected) {
+    res.status(500).json({ success: false, error: 'server_misconfigured' });
+    return;
+  }
+
+  const body = parseBody(req);
+  const code = typeof body?.code === 'string' ? body.code : '';
+  if (!code || !constantTimeEquals(code, expected)) {
+    res.status(401).json({ success: false, error: 'invalid_code' });
+    return;
+  }
+
+  let token;
+  try {
+    token = makeProToken();
+  } catch {
+    res.status(500).json({ success: false, error: 'server_misconfigured' });
+    return;
+  }
+
+  res.setHeader('Set-Cookie', buildProCookie(token));
+  res.status(200).json({ success: true, token });
+}
+
+// POST /api/ai-tools-public?action=verify — { email } -> PRO token if a paid
+// subscriber. Dormant-safe until the paid_subscribers list is uploaded.
+async function handleVerifyAction(req, res) {
+  const body = parseBody(req);
+  const email = String(body?.email || '').trim().toLowerCase();
+  if (!email) {
+    res.status(400).json({ success: false, error: 'invalid_email' });
+    return;
+  }
+
+  const db = getServiceClient();
+  if (!db) {
+    res.status(500).json({ success: false, error: 'server_misconfigured' });
+    return;
+  }
+
+  let subscriber = null;
+  try {
+    const { data } = await db
+      .from('paid_subscribers')
+      .select('email')
+      .eq('email', email)
+      .maybeSingle();
+    subscriber = data || null;
+  } catch {
+    subscriber = null;
+  }
+
+  if (!subscriber) {
+    // Keep the message generic — do not reveal whether the email exists.
+    res.status(200).json({ success: false, error: 'not_subscribed' });
+    return;
+  }
+
+  // TODO(email-verification): For stronger proof-of-ownership, replace this
+  // direct token issue with a magic-link flow — email the subscriber a signed,
+  // single-use link that, when clicked, mints the PRO token. Direct issue on
+  // match is acceptable for launch.
+  let token;
+  try {
+    token = makeProToken();
+  } catch {
+    res.status(500).json({ success: false, error: 'server_misconfigured' });
+    return;
+  }
+
+  res.setHeader('Set-Cookie', buildProCookie(token));
+  res.status(200).json({ success: true, token });
+}
+
 module.exports = async (req, res) => {
+  const action = getAction(req);
+
+  // Query-routed PRO endpoints, folded into this function to avoid adding new
+  // serverless functions. Preserves the exact request/response shapes, token
+  // minting, and cookies of the former api/unlock.js + api/verify-subscriber.js.
+  if (action === 'unlock' || action === 'verify') {
+    setActionCors(req, res);
+    if (req.method === 'OPTIONS') {
+      res.status(204).end();
+      return;
+    }
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method !== 'POST') {
+      res.status(405).json({ success: false, error: 'Method not allowed. Use POST.' });
+      return;
+    }
+    if (action === 'unlock') {
+      await handleUnlockAction(req, res);
+    } else {
+      await handleVerifyAction(req, res);
+    }
+    return;
+  }
+
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;
@@ -1609,8 +1735,3 @@ module.exports = async (req, res) => {
     });
   }
 };
-
-// Re-exported for reuse by api/unlock.js and api/verify-subscriber.js.
-module.exports.makeProToken = makeProToken;
-module.exports.verifyProToken = verifyProToken;
-module.exports.getProTokenFromReq = getProTokenFromReq;
