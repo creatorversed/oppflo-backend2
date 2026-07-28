@@ -37,7 +37,7 @@ const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_TOKENS_CTX = 1500;
 const PUBLIC_DEFAULT_MAX_TOKENS = 1000;
 const PUBLIC_LONG_FORM_MAX_TOKENS = 1500;
-const PUBLIC_SPONSORSHIP_PROPOSAL_MAX_TOKENS = 2000;
+const PUBLIC_SPONSORSHIP_PROPOSAL_MAX_TOKENS = 2500;
 const PUBLIC_CONTENT_REPURPOSE_MAX_TOKENS = 2000;
 const LONG_FORM_TOOLS = new Set([
   'blog-outline',
@@ -51,6 +51,7 @@ const LONG_FORM_TOOLS = new Set([
   'company-culture-decoder',
   'project-brief',
   'linkedin-analyzer',
+  'cover-letter',
 ]);
 const JOB_QUERY_LIMIT = 15;
 const DATA_CONTEXT_CHAR_LIMIT = 1500;
@@ -181,6 +182,9 @@ function getPublicOutputMaxTokens(toolName) {
   if (toolName === 'opportunity-description-generator') return 2500;
   if (toolName === 'bio-generator') return PUBLIC_LONG_FORM_MAX_TOKENS;
   if (toolName === 'cv-bio-builder') return PUBLIC_LONG_FORM_MAX_TOKENS;
+  if (toolName === 'career-quiz') return PUBLIC_LONG_FORM_MAX_TOKENS;
+  if (toolName === 'content-ideas') return PUBLIC_LONG_FORM_MAX_TOKENS;
+  if (toolName === 'brand-audit') return PUBLIC_LONG_FORM_MAX_TOKENS;
   if (LONG_FORM_TOOLS.has(toolName)) return PUBLIC_LONG_FORM_MAX_TOKENS;
   return PUBLIC_DEFAULT_MAX_TOKENS;
 }
@@ -436,10 +440,10 @@ Then write each remaining section. Separate EVERY section from the next (includi
 Required sections after the outreach email, in this order:
 
 EXECUTIVE SUMMARY
-Write 2-3 paragraphs summarizing the partnership opportunity and key value proposition.
+Write 1-2 concise paragraphs summarizing the partnership opportunity and key value proposition.
 
 ABOUT THE CREATOR
-Write 2-3 paragraphs about the creator brand, content focus, audience, and credibility.
+Write 1-2 concise paragraphs about the creator brand, content focus, audience, and credibility.
 
 AUDIENCE INSIGHTS
 Write detailed audience demographics, engagement rates, psychographic profile, and platform breakdown.
@@ -454,10 +458,10 @@ DELIVERABLES TIMELINE
 Write a month-by-month content calendar showing when each deliverable executes.
 
 WHY THIS PARTNERSHIP WORKS
-Write 3-5 specific reasons this brand and creator are aligned.
+Write 1-2 concise paragraphs with 3-5 specific reasons this brand and creator are aligned.
 
 NEXT STEPS
-Write 2-3 specific next steps to move the partnership forward.
+Write 1-2 concise paragraphs with 2-3 specific next steps to move the partnership forward.
 
 Use the actual brand names, audience size, demographics, deliverables, and rate range from the inputs. Never use placeholder text. Write as if this is a real proposal ready to send. Complete every section fully.
 
