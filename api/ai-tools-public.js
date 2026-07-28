@@ -338,7 +338,9 @@ ${TONE_INSTRUCTIONS}`,
   'podcast-planner': {
     maxTokens: MAX_TOKENS_CTX,
     required: [],
-    system: `You are a podcast production expert. Generate complete episode plans including: 3 episode title options optimized for podcast search, compelling episode description for show notes, complete episode outline with timestamps and segments, 10 specific interview questions or talking points, a teaser quote for social media, and suggested social media clip moments with timestamps. Format everything with clear sections.
+    system: `You are a podcast production expert. Generate complete episode plans with these six sections in this exact order: (1) 3 episode title options optimized for podcast search, (2) compelling episode description for show notes, (3) complete episode outline with timestamps and segments, (4) 10 specific interview questions or talking points, (5) a teaser quote for social media, and (6) suggested social media clip moments with timestamps.
+
+Separate each section with a line containing only ===SECTION===. Output exactly five ===SECTION=== markers between the six sections. Do not use --- dividers.
 
 ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
@@ -384,7 +386,9 @@ ${TONE_INSTRUCTIONS}`,
   'elevator-pitch': {
     maxTokens: MAX_TOKENS_CTX,
     required: [],
-    system: `You are a personal branding expert. Generate elevator pitches in four lengths: 15-second quick intro, 30-second elevator pitch, 60-second detailed pitch, and 2-minute full pitch. Each should be natural, conversational, and memorable — not salesy or generic.
+    system: `You are a personal branding expert. Generate elevator pitches in four lengths, in this exact order: (1) 15-second quick intro, (2) 30-second elevator pitch, (3) 60-second detailed pitch, and (4) 2-minute full pitch. Each should be natural, conversational, and memorable — not salesy or generic.
+
+Separate each pitch with a line containing only ===SECTION===. Output exactly three ===SECTION=== markers between the four pitches. Do not use --- dividers.
 
 ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
@@ -427,33 +431,37 @@ ${TONE_INSTRUCTIONS}`,
 
 First write a cold outreach email (subject line + 3-4 paragraphs).
 
-Then write each of these sections separated by --- on its own line:
+Then write each remaining section. Separate EVERY section from the next (including after the outreach email) with a line containing only ===SECTION===. After each ===SECTION=== marker, put the section title alone on the next line, then the section content. Do not use --- dividers or named ---TOKEN--- markers.
 
----EXECUTIVE SUMMARY---
+Required sections after the outreach email, in this order:
+
+EXECUTIVE SUMMARY
 Write 2-3 paragraphs summarizing the partnership opportunity and key value proposition.
 
----ABOUT THE CREATOR---
+ABOUT THE CREATOR
 Write 2-3 paragraphs about the creator brand, content focus, audience, and credibility.
 
----AUDIENCE INSIGHTS---
+AUDIENCE INSIGHTS
 Write detailed audience demographics, engagement rates, psychographic profile, and platform breakdown.
 
----PROPOSED PARTNERSHIP STRUCTURE---
+PROPOSED PARTNERSHIP STRUCTURE
 Write a detailed breakdown of all deliverables selected, organized by platform, with timing and cadence.
 
----PRICING BREAKDOWN---
+PRICING BREAKDOWN
 Write investment tiers or flat rate based on the rate range, with per-deliverable pricing and package inclusions. If the user enters open to suggestions, open, or flexible for their rate or budget range, generate specific recommended pricing based on their audience size, deliverables selected, and campaign timeline. Use 2026 creator economy market rates as your reference. Present 3 tiers: a Starter package, a Growth package, and a Premium package with specific dollar amounts for each. Explain the rationale for each price point based on the deliverables and audience size provided.
 
----DELIVERABLES TIMELINE---
+DELIVERABLES TIMELINE
 Write a month-by-month content calendar showing when each deliverable executes.
 
----WHY THIS PARTNERSHIP WORKS---
+WHY THIS PARTNERSHIP WORKS
 Write 3-5 specific reasons this brand and creator are aligned.
 
----NEXT STEPS---
+NEXT STEPS
 Write 2-3 specific next steps to move the partnership forward.
 
-Use the actual brand names, audience size, demographics, deliverables, and rate range from the inputs. Never use placeholder text. Write as if this is a real proposal ready to send. Complete every section fully.`,
+Use the actual brand names, audience size, demographics, deliverables, and rate range from the inputs. Never use placeholder text. Write as if this is a real proposal ready to send. Complete every section fully.
+
+${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
   },
   'brand-pitch': {
