@@ -1450,7 +1450,7 @@ function getAction(req) {
   return String(a || '').toLowerCase().trim();
 }
 
-// CORS for the unlock/verify/register-email actions.
+// CORS for tool calls and the unlock/verify/register-email actions.
 function setActionCors(req, res) {
   const origin = req.headers?.origin;
   res.setHeader('Access-Control-Allow-Origin', origin || '*');
@@ -1620,6 +1620,9 @@ module.exports = async (req, res) => {
     return;
   }
 
+  // Same CORS Allow-Headers as the action branches so preflight accepts
+  // x-device-id / x-pro-token / x-free-token on tool calls.
+  setActionCors(req, res);
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;
