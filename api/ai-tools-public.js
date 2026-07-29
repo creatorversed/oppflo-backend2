@@ -178,7 +178,7 @@ function buildUserContext(b) {
 function getPublicOutputMaxTokens(toolName) {
   if (toolName === 'sponsorship-proposal') return PUBLIC_SPONSORSHIP_PROPOSAL_MAX_TOKENS;
   if (toolName === 'content-repurpose') return PUBLIC_CONTENT_REPURPOSE_MAX_TOKENS;
-  if (toolName === 'contract-template') return 4000;
+  if (toolName === 'contract-template') return 8000;
 if (toolName === 'ftc-checker') return 3000;
 if (toolName === 'scope-of-work') return 3000;
   if (toolName === 'archive-intelligence') return 2000;
