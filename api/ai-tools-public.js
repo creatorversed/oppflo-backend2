@@ -187,7 +187,7 @@ if (toolName === 'brand-voice') return 3000;
   if (toolName === 'opportunity-description-generator') return 2500;
   if (toolName === 'bio-generator') return PUBLIC_LONG_FORM_MAX_TOKENS;
   if (toolName === 'cv-bio-builder') return PUBLIC_LONG_FORM_MAX_TOKENS;
-  if (toolName === 'career-quiz') return PUBLIC_LONG_FORM_MAX_TOKENS;
+  if (toolName === 'career-quiz') return 5000;
   if (toolName === 'content-ideas') return PUBLIC_LONG_FORM_MAX_TOKENS;
   if (toolName === 'brand-audit') return PUBLIC_LONG_FORM_MAX_TOKENS;
   if (LONG_FORM_TOOLS.has(toolName)) return PUBLIC_LONG_FORM_MAX_TOKENS;
