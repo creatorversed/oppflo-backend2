@@ -181,6 +181,8 @@ function getPublicOutputMaxTokens(toolName) {
   if (toolName === 'contract-template') return 8000;
 if (toolName === 'ftc-checker') return 3000;
 if (toolName === 'scope-of-work') return 3000;
+if (toolName === 'job-analyzer') return 3000;
+if (toolName === 'brand-voice') return 3000;
   if (toolName === 'archive-intelligence') return 2000;
   if (toolName === 'opportunity-description-generator') return 2500;
   if (toolName === 'bio-generator') return PUBLIC_LONG_FORM_MAX_TOKENS;
