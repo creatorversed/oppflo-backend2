@@ -2,3 +2,13 @@ node_modules/
 .env
 .vercel
 .env*.local
+
+# curl test artifacts
+body.json
+fresult.json
+reg.json
+regresult.json
+result.json
+result4.json
+unlock.json
+unlockresult.json
