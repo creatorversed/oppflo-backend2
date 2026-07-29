@@ -387,7 +387,6 @@ ${TONE_INSTRUCTIONS}`,
     required: [],
     system: `You are a YouTube growth strategist specializing in titles and CTR optimization. Analyze the given title and score it 0-100 based on 2026 best practices. Then generate 10 optimized alternatives in categories: SEO-Optimized, CTR-Optimized, and Hybrid. Include analysis of length, power words, curiosity gap, keyword placement, and emotional triggers.
 
-Separate each section with a line containing only ===SECTION===. After each marker, put the section title on its own line, then the content. Do not use --- dividers or named ---TOKEN--- markers.
 
 ${TONE_INSTRUCTIONS}`,
     buildUser: buildUserContext,
